@@ -5,6 +5,7 @@
 #include <cerrno>
 #include <cstring>
 #include <iomanip>
+#include <memory>
 #include <sstream>
 
 namespace file_manager {
@@ -233,8 +234,12 @@ ChecksumResult checksum_sha256(
         return result;
     }
 
+    // The read buffer is heap storage owned by this call, allocated once
+    // before the loop: 256 KiB would be a quarter of a Windows thread stack
+    // and half of a macOS secondary thread's. read() fills the first `count`
+    // bytes before hashing reads them, so the storage starts uninitialized.
     constexpr std::size_t buffer_size = 256U * 1024U;
-    std::array<std::byte, buffer_size> buffer{};
+    const std::unique_ptr<std::byte[]> buffer = std::make_unique_for_overwrite<std::byte[]>(buffer_size);
     Sha256 hash{};
     std::uint64_t bytes_read{};
     for (;;) {
@@ -245,7 +250,7 @@ ChecksumResult checksum_sha256(
             result.bytes_read = bytes_read;
             return result;
         }
-        const std::ptrdiff_t count = descriptor.read(buffer.data(), buffer.size());
+        const std::ptrdiff_t count = descriptor.read(buffer.get(), buffer_size);
         if (count < 0) {
             ChecksumResult result = failure(ChecksumTerminal::unavailable, "read-failed",
                 std::string("cannot read file: ") + descriptor.error_message(), path);
@@ -255,7 +260,7 @@ ChecksumResult checksum_sha256(
         }
         if (count == 0) break;
         const std::size_t size = static_cast<std::size_t>(count);
-        hash.update(buffer.data(), size);
+        hash.update(buffer.get(), size);
         bytes_read += static_cast<std::uint64_t>(size);
         if (progress) {
             progress({bytes_read, before.size});

@@ -18,3 +18,9 @@ __pycache__/
 # Disposable compiler objects restored from provider artifacts.
 .ccache/
 cache-manifest.json
+
+# Written at the workspace root by the provider's CI tools: its state
+# directory and the Windows toolchain archive it restores.
+/.ci/
+/gui-forms-toolchain-windows-x64.tar.zst
+/gui-forms-toolchain-windows-x64.json

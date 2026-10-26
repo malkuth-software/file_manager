@@ -1,22 +1,22 @@
 {
   "backend": {
     "repository": "falseywinchnet/backend",
-    "revision": "6eb51f84260984b4b293156ed7fefb057267bce5",
-    "release": "build-6eb51f84260984b4b293156ed7fefb057267bce5",
+    "revision": "bfa8751ec3b0f44c5a93199133654bf72f172740",
+    "release": "build-bfa8751ec3b0f44c5a93199133654bf72f172740",
     "sha256": {
-      "windows-x64": "31eb0268319844b66851e025a1d2deddb8a8c6d06ac5714475eb6bca63e1e89f",
-      "linux-x64": "474597e1a66ebca747553791e94b47d59fb125f415513a8ef13122ca432f0d14",
-      "macos-arm64": "6f57fc5eb9ef904eb9e35f5270ce81144e3c91780188d3cf3c7146cf01d79246"
+      "windows-x64": "abe17980411e0e1a31ff928b257e74c594e85960d5cca5620c40b2ea38900874",
+      "linux-x64": "fde23bc3a5cff068e9ccea9b07e13e1d6aad91092ff6f5656d46c7ea4f7a938b",
+      "macos-arm64": "cb4d2ae43fe85de90672b96bfc236097d64ecc5f3cdcf36c7c53e53779f013c3"
     }
   },
   "gui_forms": {
-    "repository": "falseywinchnet/gui_forms",
-    "revision": "c90eacf36652e2c30a94201e6621f91b2026a865",
-    "release": "build-c90eacf36652e2c30a94201e6621f91b2026a865",
+    "repository": "malkuth-software/gui_forms",
+    "revision": "2fe26d8d1a830e82a1db5781c6e8a05c2a0df6d0",
+    "release": "build-2fe26d8d1a830e82a1db5781c6e8a05c2a0df6d0",
     "sha256": {
-      "macos-arm64": "4dc6db6130b9211003aad0911e4ca4a8b0c66b9eea0323a1193c6047bca3db38",
-      "linux-x64": "3134defea3c76698c4ed208a7350c28b77780094c037a9576a6161b42a0600ea",
-      "windows-x64": "25f11b9224cfd994a0fd1ed260400f2ba8a046d3a9bc33c36258cd61f8e6dd46"
+      "macos-arm64": "70b7eff0f031cc71d0aece14011f5e3e7eacb835f9f44da1c6b87735467a1d6d",
+      "linux-x64": "c5022d7da9559f4fdf061c3ffe32680c02f4054efb7725d053a02946b7b54b4d",
+      "windows-x64": "6dd8e52488b247ca822b930819cb9f54786ae1579262625c69b2a65c800a3657"
     }
   }
 }
