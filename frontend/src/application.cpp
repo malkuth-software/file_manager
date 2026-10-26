@@ -644,6 +644,11 @@ void Application::install_dynamic_controls() {
     (*search_box_).set_requested_bounds({0, 0, 228, 30});
     (*search_box_).set_placeholder_text("Search this subtree");
     (*search_box_).set_accessible_name("Search current subtree");
+    // The search box is an edit session: plain Enter runs the search
+    // (committed()) and plain Escape cancels it (cancelled()), instead of
+    // either key travelling on to the containers.
+    (*search_box_).set_accepts_enter(true);
+    (*search_box_).set_accepts_escape(true);
     (*form_.file_manager_app_shell_location_search_host).clear_children();
     (*form_.file_manager_app_shell_location_search_host).add_child(search_box_);
     (*form_.file_manager_app_shell_location_search_host).set_flex_grow(*search_box_, 1.0);
@@ -825,6 +830,10 @@ void Application::install_dynamic_controls() {
     (*rename_box_).set_maximum_length(255);
     (*rename_box_).set_placeholder_text("New name");
     (*rename_box_).set_accessible_name("Rename selected object");
+    // The rename box is an edit session: plain Enter commits the name
+    // (committed()) and plain Escape ends naming (cancelled()).
+    (*rename_box_).set_accepts_enter(true);
+    (*rename_box_).set_accepts_escape(true);
     (*rename_box_).set_visible(false);
     (*form_.file_manager_app_shell_location_path_host).add_child(rename_box_);
     (*form_.file_manager_app_shell_location_path_host).set_flex_grow(

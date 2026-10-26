@@ -1,31 +1,30 @@
 if(POLICY CMP0207)
     cmake_policy(SET CMP0207 NEW)
 endif()
-if(NOT DEFINED EXECUTABLE OR NOT DEFINED TOOLCHAIN_BIN)
-    message(FATAL_ERROR "Runtime staging requires an executable and toolchain bin")
+if(NOT DEFINED EXECUTABLE)
+    message(FATAL_ERROR "Runtime check requires an executable")
 endif()
+# The executable links the LLVM runtimes statically (-static), and its
+# GUI.Forms DLLs were staged beside it from the SDK. Resolve imports against
+# that directory alone: a DLL found nowhere else, such as libc++.dll or
+# libunwind.dll from the toolchain, is reported unresolved and stops the build.
 get_filename_component(destination "${EXECUTABLE}" DIRECTORY)
 file(GET_RUNTIME_DEPENDENCIES
     EXECUTABLES "${EXECUTABLE}"
-    DIRECTORIES "${destination}" "${TOOLCHAIN_BIN}"
+    DIRECTORIES "${destination}"
     RESOLVED_DEPENDENCIES_VAR dependencies
     UNRESOLVED_DEPENDENCIES_VAR unresolved
     PRE_EXCLUDE_REGEXES "api-ms-.*" "ext-ms-.*"
     POST_EXCLUDE_REGEXES ".*[/\\][Ww][Ii][Nn][Dd][Oo][Ww][Ss][/\\].*")
 if(unresolved)
-    message(FATAL_ERROR "Unresolved runtime dependencies: ${unresolved}")
+    message(FATAL_ERROR "Imports neither a Windows system DLL nor a staged GUI.Forms DLL: ${unresolved}")
 endif()
+# Windows paths compare without case; both sides are CMake (forward-slash) paths.
+string(TOLOWER "${destination}" destination_key)
 foreach(dependency IN LISTS dependencies)
-    get_filename_component(filename "${dependency}" NAME)
-    if(NOT dependency STREQUAL "${destination}/${filename}")
-        file(COPY_FILE "${dependency}" "${destination}/${filename}" ONLY_IF_DIFFERENT)
-    endif()
-endforeach()
-
-get_filename_component(toolchain_root "${TOOLCHAIN_BIN}" DIRECTORY)
-# Preserve the notices for either supported MinGW C++ runtime family.
-foreach(package libc++ libunwind compiler-rt libgcc libstdc++ winpthreads)
-    if(EXISTS "${toolchain_root}/share/licenses/${package}")
-        file(COPY "${toolchain_root}/share/licenses/${package}" DESTINATION "${destination}/licenses")
+    get_filename_component(directory "${dependency}" DIRECTORY)
+    string(TOLOWER "${directory}" directory_key)
+    if(NOT directory_key STREQUAL destination_key)
+        message(FATAL_ERROR "Runtime dependency resolved outside the executable directory: ${dependency}")
     endif()
 endforeach()

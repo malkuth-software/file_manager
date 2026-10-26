@@ -12,6 +12,7 @@ GUI framework, index store, semantic pipeline, or plugin ABI.
 
 | File | Purpose |
 |---|---|
+| `GUI_FORMS_0_2_CONSUMPTION_2026-10-26.md` | GUI.Forms 0.2 pin, the provider's LLVM 22.1.8 build method copied into File Manager, keyboard-policy drift and local measurements |
 | `WINDOWS_BRINGUP_2026-09-29.md` | Shared Plan Paint toolchain, user-local Go/Rust, Windows build commands, component evidence and remaining platform limits |
 | `REASSESSMENT_2026-09-29.md` | Shadow-desktop source review, Plan Paint toolkit comparison, status conflicts, and candidate recovery/dogfood sequence; not a new ADR |
 | `PREPLAN_CHARTER.md` | Stages and exit gates for creating the actual plan |

@@ -299,3 +299,11 @@ compiles GUI.Forms source through ccache. Do not silently update dependency
 pins, skip consumer tests on cache hits, or claim per-function caching. The
 backend registry retains cross-project semantic authority. Historical evidence
 and old host instructions remain historical, not current path definitions.
+
+Since 2026-10-26 native builds copy the GUI.Forms build method exactly:
+`tools/build_native.py` runs the pinned provider's `tools/ci_build.py`, and
+the frontend uses its `cmake/llvm22.cmake` (Clang 22.1.x only). On Shadow the
+toolchain is the provider's published CLANG64 tree at `D:\a\_temp\msys64`
+(`tools/Enter-WindowsToolchain.ps1`); the Plan Paint toolchain named above is
+absent. See `planning/GUI_FORMS_0_2_CONSUMPTION_2026-10-26.md` and
+`tools/NATIVE_BUILDS.md`.

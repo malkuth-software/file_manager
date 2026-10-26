@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 from pathlib import Path
+import platform
 import subprocess
 import sys
 import tarfile
@@ -114,6 +115,10 @@ class NativeToolTests(unittest.TestCase):
 
     def test_smoke_exception_reaps_owned_child(self) -> None:
         process: OwnedProcess = OwnedProcess()
+        # Patching package_native's Popen replaces the shared subprocess.Popen.
+        # On Windows the first platform.system() runs `ver` through it, so
+        # fill platform's cache before the fixture takes over.
+        platform.system()
         with patch('package_native.subprocess.Popen', return_value=process):
             with patch.object(process, 'wait', side_effect=[OSError('fixture failure'), subprocess.TimeoutExpired('fixture-child', 10), 0]):
                 with self.assertRaises(OSError):

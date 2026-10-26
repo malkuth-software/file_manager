@@ -446,6 +446,9 @@ const gui_forms::SemanticNode* find_semantic(const std::vector<gui_forms::Semant
     }
     return nullptr;
 }
+// The result points into `nodes`: a temporary semantic snapshot may not be passed.
+const gui_forms::SemanticNode* find_semantic(std::vector<gui_forms::SemanticNode>&& nodes,
+                                             std::string_view stable_id) = delete;
 
 // Category lookup is deliberately shallow, matching the original menu-row search.
 const gui_forms::SemanticNode*
@@ -458,6 +461,10 @@ find_menu_category(const std::vector<gui_forms::SemanticNode>& categories,
     }
     return nullptr;
 }
+// The result points into `categories`: a temporary semantic snapshot may not be passed.
+const gui_forms::SemanticNode*
+find_menu_category(std::vector<gui_forms::SemanticNode>&& categories,
+                   std::string_view stable_id) = delete;
 
 bool has_action(const gui_forms::SemanticNode& node, const gui_forms::SemanticAction action) {
     const bool ready =
@@ -661,6 +668,9 @@ find_modified_module(const std::vector<gui_forms::InstrumentModuleSpec>& modules
     }
     return nullptr;
 }
+// The result points into `modules`: a temporary module list may not be passed.
+const gui_forms::InstrumentModuleSpec*
+find_modified_module(std::vector<gui_forms::InstrumentModuleSpec>&& modules) = delete;
 
 bool has_object_menu_rows(gui_forms::Window& window, const std::array<std::string_view, 12>& rows) {
     for (const std::string_view row : rows) {
