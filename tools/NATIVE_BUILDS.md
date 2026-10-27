@@ -115,6 +115,20 @@ summary**, which passes only when the house-style job and every platform
 passed; branch protection requires it alone. The path-filtered JPEG research
 workflow is not part of it.
 
+## Releases
+
+A push to main builds every platform as version `0.1.<run>` (the workflow
+run number; `build_native.py --release-version`), and once the summary check
+passes the `publish` job releases those tested archives as prerelease
+`v0.1.<run>` with `tools/publish_release.py`: one archive and `.sha256` per
+platform, named for that version and commit, never a dirty tree. It creates
+a draft, uploads, publishes, then checks the tag names the tested commit; a
+rerun completes a draft or leaves a published release alone. Every other
+build carries `0.1-dev`. The version is single-sourced in
+`frontend/CMakeLists.txt` (`FILE_MANAGER_VERSION`) and reaches About, the
+status line, the macOS bundle and the archive name. Releases are archives
+for now; installers come next.
+
 Build outputs remain under `.build/native-<platform>-<arch>/`. The independently
 installed picker package is under `frontend-sdk/lib/cmake/FileManagerDocumentPicker`;
 it still requires the matching GUI.Forms SDK. Distributable archives are under

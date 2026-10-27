@@ -1919,7 +1919,7 @@ void Application::toggle_selection_pane() {
 
 void Application::show_about() {
     const std::string version = FILE_MANAGER_VERSION;
-    set_status("File Manager · " + version + " development build",
+    set_status("File Manager · " + version,
                "local filesystem authority · GUI.Forms + Web.Forms");
     if (show_about_window_) show_about_window_();
 }

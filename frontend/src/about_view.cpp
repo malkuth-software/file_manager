@@ -48,7 +48,7 @@ AboutView::AboutView()
           gui_forms::StableId("file-manager.about.heading"), "File Manager")),
       version_(std::make_shared<gui_forms::Label>(
           gui_forms::StableId("file-manager.about.version"),
-          "0.001-alpha · development build")),
+          FILE_MANAGER_VERSION)),
       description_(std::make_shared<gui_forms::Label>(
           gui_forms::StableId("file-manager.about.description"),
           "One local place at a time, with protected filesystem authority and inspectable service boundaries.")),
