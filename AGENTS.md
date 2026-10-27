@@ -5,14 +5,20 @@ pre-architecture in unresolved areas. Do not silently turn research candidates
 into architecture decisions, and do not reopen an accepted ADR through older
 candidate language.
 
+File Manager's plans, decisions, interviews, studies and results live on the
+`file_manager` branch of `malkuth-software/notes`, not in this repository.
+`notes:<path>` names `<path>` on that branch; the harness bootstrap checks it
+out beside this checkout's root at `notes-file_manager/`
+(`git -C notes worktree add ../notes-file_manager file_manager` by hand).
+
 Before planning or implementation, read:
 
-1. `planning/README.md`
-2. `planning/PROGRAM_MAP.md`
-3. `planning/PREPLAN_CHARTER.md`
-4. `planning/EVIDENCE_REGISTER.md`
-5. `planning/DECISION_PROTOCOL.md`
-6. `decisions/README.md`
+1. `notes:planning/README.md`
+2. `notes:planning/PROGRAM_MAP.md`
+3. `notes:planning/PREPLAN_CHARTER.md`
+4. `notes:planning/EVIDENCE_REGISTER.md`
+5. `notes:planning/DECISION_PROTOCOL.md`
+6. `notes:decisions/README.md`
 7. the relevant component `AGENTS.md` and contract registry entries
 8. `planning/PROGRAMMING_HOUSE_STYLE.md`, the owner's complete coding standard
 
@@ -105,11 +111,11 @@ The GUI must not be immediate-mode. Keep authoring style, serialized description
 runtime state retention, layout, native-control wrapping, and rendering strategy
 as separate axes. The live surface hypothesis is imperative authoring compiled
 through a PTP-like declarative schema into a retained, custom-rendered native
-core; it remains a hypothesis until `planning/SURFACE_PIPELINE.md` is resolved.
+core; it remains a hypothesis until `notes:planning/SURFACE_PIPELINE.md` is resolved.
 
 ## Decision hygiene
 
-Architecture decisions live in numbered records under `decisions/`.
+Architecture decisions live in numbered records under `notes:decisions/`.
 Each must state the question, constraints, candidates, measurements, failure
 modes, chosen option, rejected options, reversal path, and owner approval.
 
@@ -305,5 +311,5 @@ Since 2026-10-26 native builds copy the GUI.Forms build method exactly:
 the frontend uses its `cmake/llvm22.cmake` (Clang 22.1.x only). On Shadow the
 toolchain is the provider's published CLANG64 tree at `D:\a\_temp\msys64`
 (`tools/Enter-WindowsToolchain.ps1`); the Plan Paint toolchain named above is
-absent. See `planning/GUI_FORMS_0_2_CONSUMPTION_2026-10-26.md` and
+absent. See `notes:planning/GUI_FORMS_0_2_CONSUMPTION_2026-10-26.md` and
 `tools/NATIVE_BUILDS.md`.

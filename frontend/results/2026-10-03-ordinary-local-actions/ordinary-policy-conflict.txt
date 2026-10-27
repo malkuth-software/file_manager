@@ -1,1 +1,0 @@
-File Manager: --read-only conflicts with --allow-mutations

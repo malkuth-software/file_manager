@@ -27,7 +27,7 @@ output geometry, not isolated codec throughput. Both use supplied orientation;
 neither timing mode measures EXIF parsing. The geometry-reference raster remains
 resident outside WIC timing; these are not equal-RSS comparisons. Encoding,
 validation, output destruction, file I/O, process startup, IPC and paint remain
-excluded. See `../../results/2026-10-04-jpeg-wic-control/README.md`.
+excluded. See `notes:results/2026-10-04-jpeg-wic-control/README.md`.
 
 ## Reproduce on Shadow
 
@@ -103,7 +103,7 @@ experiment is installed into File Manager by this workflow.
 - The default optimized gray transform failed the independent dark-ramp
   oracle. Gray currently uses `cmsFLAGS_NOOPTIMIZE`; RGB retains the default
   optimizer. See the retained failure and passing correctness evidence in
-  `../../results/2026-10-04-jpeg-color/README.md`. This is not a performance claim.
+  `notes:results/2026-10-04-jpeg-color/README.md`. This is not a performance claim.
   Generated neutral ramps use an independent sRGB transfer equation; embedded
   RGB and gray profiles exercise both JPEG coding modes and all orientations.
   Real camera profiles, wide-gamut clipping, monitor-profile display conversion
@@ -156,7 +156,7 @@ freeze:
 
 Indexed thumbnails remain a separate Engine/Orchestrator contract. This research
 does not authorize background per-folder thumbnail scans. Results and source
-review are in `frontend/results/2026-10-03-jpeg-decode/README.md`.
+review are in `notes:results/2026-10-03-jpeg-decode/README.md`.
 
 ## Generated output through the candidate frame
 
@@ -165,7 +165,7 @@ as the experimental 64-byte header plus bounded opaque BGRA payload. `N` is 1–
 Only generated 2048x1536 images are accepted; the second mode combines progressive
 JPEG, linear RGB ICC and embedded EXIF orientation. No user file argument exists.
 The independent Rust `check_jpeg` consumer verifies the stream's geometry, alpha
-and color/orientation anchors. See `../../results/2026-10-04-jpeg-frame/README.md`
+and color/orientation anchors. See `notes:results/2026-10-04-jpeg-frame/README.md`
 for scope and evidence. The JPEG workflow runs all 16 cases on each native OS.
 This joins codec preparation to result bytes without creating a supervised
 provider, source-read authority or an application preview adapter.
@@ -185,4 +185,4 @@ rejects incomplete/trailing input. New generator modes `--emit-encoded N` and
 `--emit-color-encoded N` supply this envelope. The separate decoder avoids
 counting generator/encoder work as decoding; actual process accounting and
 supervision remain subsequent work. See
-`../../results/2026-10-04-jpeg-decoder-input/README.md` for evidence and limits.
+`notes:results/2026-10-04-jpeg-decoder-input/README.md` for evidence and limits.
