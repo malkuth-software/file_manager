@@ -105,6 +105,16 @@ provider's sanitizer profile (`ci_build.sanitizer_options`) against the tested
 Release SDK, runs every frontend test and fails on any report. CI runs it on
 Linux. To reuse an already tested native SDK, pass `--gui-forms-sdk <prefix>`.
 
+Linux arm64 is frontend-only until the pinned backend publishes an arm64
+bundle: `fetch_build_inputs.py --platform linux-arm64 --skip-backend`, then
+`build_native.py --skip-components`; both refuse that platform without the
+flag. CI's `ubuntu-24.04-arm` job does the same.
+
+Every pull request and push to main reports one check, **File Manager CI
+summary**, which passes only when the house-style job and every platform
+passed; branch protection requires it alone. The path-filtered JPEG research
+workflow is not part of it.
+
 Build outputs remain under `.build/native-<platform>-<arch>/`. The independently
 installed picker package is under `frontend-sdk/lib/cmake/FileManagerDocumentPicker`;
 it still requires the matching GUI.Forms SDK. Distributable archives are under

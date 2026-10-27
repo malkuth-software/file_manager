@@ -55,7 +55,7 @@ those repositories; update their pins here through a PR against main.
 File Manager compiles pinned GUI.Forms source using an optional provider ccache
 seed. It consumes exact tested backend binaries instead of rebuilding Go/Rust.
 Run `python3 tools/fetch_build_inputs.py --platform macos-arm64` (or `linux-x64`,
-`windows-x64`) before `python3 tools/build_native.py --jobs 2`. GitHub CLI is
+`windows-x64`; `linux-arm64 --skip-backend` is frontend-only) before `python3 tools/build_native.py --jobs 2`. GitHub CLI is
 required for fetching. The lock verifies backend archive and executable hashes.
 See ADR-021 (`notes:decisions/ADR-021-COMPONENT-REPOSITORIES-AND-BUILD-REUSE.md`).
 
