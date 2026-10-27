@@ -195,6 +195,15 @@ Linux for the first time at this pin. Windows passed throughout.
 - **The `macos-26` control** first failed before its tests: the runtime in
   the provider cache matches only the provider's compiler and SDK. The
   runtime step now rebuilds on a mismatch, as the manifest tool directs.
+- **macOS packaging (run 40470922039).** With the fixes above every macOS
+  test passed on both images (232, 11 and 16), and packaging then failed:
+  the bundled `libc++.1.0.dylib` names `@rpath/libc++abi.1.dylib` and has no
+  LC_RPATH of its own. The closure resolves such a name against the
+  executable's rpaths, but it rewrites the executable first and deletes its
+  build-tree rpath (the LLVM runtime prefix) before it reaches libc++.
+  `mac_closure` now records the executable's rpaths before any rewrite, as
+  GUI.Forms' packager reads them from its unmodified executable. With the
+  macOS failures explained, the `macos-26` control job is removed.
 
 ## Not established
 

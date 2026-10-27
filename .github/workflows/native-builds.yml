@@ -60,7 +60,7 @@ jobs:
           python3 -B tools/native_build_tests.py
           python3 -B tools/export_native_sdks_tests.py
   native:
-    name: ${{ matrix.label || matrix.platform }}
+    name: ${{ matrix.platform }}
     needs: house-style
     strategy:
       fail-fast: false
@@ -70,13 +70,6 @@ jobs:
           # location enter the compiler-cache hash.
           - runner: macos-15
             platform: macos-arm64
-            shell: bash
-          # TEMPORARY control (PR #61): the same build on the image File Manager
-          # used before the move, to tell a macOS 15 behaviour from a toolchain
-          # one. Remove once the two macOS-only test failures are explained.
-          - runner: macos-26
-            platform: macos-arm64
-            label: macos-arm64-os26-control
             shell: bash
           - runner: ubuntu-24.04
             platform: linux-x64
@@ -340,7 +333,7 @@ jobs:
       - name: Upload verified development archive
         uses: actions/upload-artifact@v4
         with:
-          name: file-manager-${{ matrix.label || matrix.platform }}
+          name: file-manager-${{ matrix.platform }}
           path: |
             .build/native-${{ matrix.platform }}/dist/*.zip
             .build/native-${{ matrix.platform }}/dist/*.tar.gz
@@ -349,7 +342,7 @@ jobs:
       - name: Upload verified matching native SDKs
         uses: actions/upload-artifact@v4
         with:
-          name: gui-forms-picker-sdk-${{ matrix.label || matrix.platform }}
+          name: gui-forms-picker-sdk-${{ matrix.platform }}
           path: |
             .build/native-${{ matrix.platform }}/sdk-dist/*.zip
             .build/native-${{ matrix.platform }}/sdk-dist/*.sha256
@@ -358,7 +351,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-evidence-${{ matrix.label || matrix.platform }}
+          name: build-evidence-${{ matrix.platform }}
           path: |
             .build/native-${{ matrix.platform }}/**/Testing/Temporary/*LastTest.log
             .build/native-${{ matrix.platform }}/**/CMakeConfigureLog.yaml
