@@ -16,8 +16,6 @@ Start with:
 - `notes:planning/README.md` — current phase and artifact map;
 - `notes:planning/PROGRAM_MAP.md` — component ownership,
   current permissions, contract authority, and build order;
-- [`malkuth/`](malkuth/) — Curious/Concise/Friendly mission, release horizons,
-  documentation, installer, website, and release-manifest planning;
 - `notes:planning/PREPLAN_CHARTER.md` — the plan for
   producing the actual project plan;
 - `notes:planning/EVIDENCE_REGISTER.md` — Zeta
@@ -68,10 +66,6 @@ See ADR-021 (`notes:decisions/ADR-021-COMPONENT-REPOSITORIES-AND-BUILD-REUSE.md`
 - [`backend/engine/`](backend/engine/) — purpose-built, standalone Go catalogue/index/search
   service with a narrow versioned API, mandatory sandbox, exact-identity oracle,
   crash/corruption testing, and comparison benchmarks against mature stores.
-- [`kolmogrov/`](kolmogrov/) — independent formal and experimental program for
-  ConeDAG successors, practical algorithmic-information measures, exhaustive
-  breakdown, and fixed-width multi-channel perceptual hashes. It pursues proof
-  closure and adversarial measurement before production promotion.
 - [`backend/orchestrator/`](backend/orchestrator/) — the active user-scoped Rust Orchestrator:
   canonical integration authority, contract and availability registry, CLI,
   and future owner of hives, settings, handlers, commands, platform policy, and
@@ -80,18 +74,11 @@ See ADR-021 (`notes:decisions/ADR-021-COMPONENT-REPOSITORIES-AND-BUILD-REUSE.md`
 - [`frontend/`](frontend/) — the C++ end-user application. Frontend 001 begins
   after Orchestrator Core 1.0, the named GUI.Forms go-ahead, and explicit
   architect direction. Engine and later providers retain separate gates.
-- [`paint/`](paint/) — interview-first planning for the future classic direct
-  image editor and alpha clipart/composite workflow; implementation gated.
-- [`text_editor/`](text_editor/) — interview-first planning for the future
-  tabless plain-text/configuration editor; implementation gated.
-- [`games/`](games/) — planning-only deterministic game collection and
-  GUI.Forms dogfood program; implementation gated.
-- [`lexicon/`](lexicon/) — planning-only local dictionary/corpus provider and
-  Shakespeare-first Crossword source; implementation gated.
-- [`malkuth/`](malkuth/) — planning-only suite release program for 1.0/2.0/3.0,
-  cross-platform installers, online documentation, and polished public website.
-- [`plugin_runtime/`](plugin_runtime/) — frozen earlier plugin-containment
-  research retained as input to Orchestrator, not a parallel runtime implementation.
+
+The monorepo's other projects (`games/`, `gui_forms_rewrite/`, `kolmogrov/`,
+`lexicon/`, `malkuth/`, `paint/`, `plugin_runtime/`, `text_editor/`) left
+this repository on 2026-10-27; they are archived privately in
+`malkuth-software/projects` at `archive/file_manager-legacy/`.
 
 Each directory contains its own `AGENTS.md`, build boundary, ledgers, acceptance
 gates, and a handoff prompt suitable for a dedicated Codex task.
