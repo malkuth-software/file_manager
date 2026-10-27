@@ -19,7 +19,10 @@ PROVIDER_REPOSITORIES: tuple[str, ...] = ('malkuth-software/gui_forms', 'falseyw
 # The macOS archive also carries the LLVM 22.1.8 runtime built for macOS 14,
 # which cmake/llvm22.cmake links through GUI_FORMS_LLVM_RUNTIME.
 MACOS_RUNTIME_LAYOUT: str = '.build/toolchain/llvm-22.1.8-macos14'
-PLATFORMS: tuple[str, ...] = ('macos-arm64', 'linux-x64', 'windows-x64')
+PLATFORMS: tuple[str, ...] = ('macos-arm64', 'linux-x64', 'linux-arm64', 'windows-x64')
+# The pinned backend publishes no bundle for these yet; their builds are
+# frontend-only (build_native.py --skip-components) and fetch no backend.
+FRONTEND_ONLY_PLATFORMS: tuple[str, ...] = ('linux-arm64',)
 
 
 def allowed_member(member: tarfile.TarInfo, platform: str) -> bool:
@@ -100,14 +103,22 @@ def main() -> None:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--platform', required=True, choices=PLATFORMS)
     parser.add_argument('--skip-cache', action='store_true')
+    parser.add_argument('--skip-backend', action='store_true',
+                        help='fetch no backend bundle, for a frontend-only build (required on '
+                             + ', '.join(FRONTEND_ONLY_PLATFORMS) + ')')
     args: argparse.Namespace = parser.parse_args()
+    if args.platform in FRONTEND_ONLY_PLATFORMS and not args.skip_backend:
+        parser.error(args.platform + ' has no pinned backend bundle; pass --skip-backend')
     lock: dict[str, dict[str, object]] = json.loads(
         (ROOT / 'dependencies.lock.json').read_text(encoding='utf-8'))
     verify_source_pins(lock, ROOT)
+    components: list[str] = ['backend', 'gui_forms']
+    if args.skip_backend:
+        components = ['gui_forms']
     output: Path = ROOT / '.build/inputs' / args.platform
     output.mkdir(parents=True, exist_ok=True)
     component: str
-    for component in ['backend', 'gui_forms']:
+    for component in components:
         if component == 'gui_forms' and args.skip_cache:
             continue
         entry: dict[str, object] = lock[component]

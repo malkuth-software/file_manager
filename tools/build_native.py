@@ -27,7 +27,7 @@ from types import ModuleType
 from native_build_support import ROOT, BuildValidation, git_output, record_source_state
 from native_build_support import output, run, sdk_fingerprint, sha256
 from backend_bundle import install_bundle
-from fetch_build_inputs import MACOS_RUNTIME_LAYOUT, verify_source_pins
+from fetch_build_inputs import FRONTEND_ONLY_PLATFORMS, MACOS_RUNTIME_LAYOUT, verify_source_pins
 
 PROVIDER_TOOLS: Path = ROOT / 'gui_forms/tools'
 # The pinned harness (harness.lock), checked out inside this workspace root by
@@ -303,6 +303,8 @@ def main() -> None:
     configuration: HostConfiguration = host_configuration()
     host: str = configuration.host
     architecture: str = configuration.architecture
+    if host + '-' + architecture in FRONTEND_ONLY_PLATFORMS and not skip_components and not sanitize:
+        parser.error(host + '-' + architecture + ' has no pinned backend bundle; pass --skip-components')
     toolkit: ToolkitSource
     if lockstep_record is not None:
         toolkit = lockstep_source(lockstep_record.resolve(), configuration)

@@ -74,15 +74,25 @@ jobs:
         include:
           # The provider's runner images: the macOS SDK and the Windows msys64
           # location enter the compiler-cache hash.
+          # frontend_only: the pinned backend publishes no bundle for the
+          # platform, so it builds, tests and packages the frontend alone
+          # (fetch_build_inputs.py FRONTEND_ONLY_PLATFORMS).
           - runner: macos-15
             platform: macos-arm64
             shell: bash
+            frontend_only: false
           - runner: ubuntu-24.04
             platform: linux-x64
             shell: bash
+            frontend_only: false
+          - runner: ubuntu-24.04-arm
+            platform: linux-arm64
+            shell: bash
+            frontend_only: true
           - runner: windows-2022
             platform: windows-x64
             shell: 'msys2 {0}'
+            frontend_only: false
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     env:
@@ -196,7 +206,11 @@ jobs:
       - name: Fetch the pinned backend bundle and toolkit compiler cache
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python tools/fetch_build_inputs.py --platform ${{ matrix.platform }}
+          FRONTEND_ONLY: ${{ matrix.frontend_only }}
+        run: |
+          inputs="--platform ${{ matrix.platform }}"
+          if [ "$FRONTEND_ONLY" = true ]; then inputs="$inputs --skip-backend"; fi
+          python tools/fetch_build_inputs.py $inputs
       - name: Build or verify the macOS 14 LLVM runtime
         if: runner.os == 'macOS'
         run: |
@@ -231,14 +245,18 @@ jobs:
           python -B tools/native_build_tests.py
           python -B gui_forms/tests/verify_install_tests.py
       - name: Build, test and package
+        env:
+          FRONTEND_ONLY: ${{ matrix.frontend_only }}
         run: |
           ccache --zero-stats
+          scope=""
+          if [ "$FRONTEND_ONLY" = true ]; then scope="--skip-components"; fi
           if [ "$RUNNER_OS" = Linux ]; then
             # Native lifecycle tests close and reopen the last X11 connection.
             # Keep the test server alive without its automatic last-client reset.
-            xvfb-run -a -s "-screen 0 1280x1024x24 -noreset" python tools/build_native.py --jobs 4
+            xvfb-run -a -s "-screen 0 1280x1024x24 -noreset" python tools/build_native.py --jobs 4 $scope
           else
-            python tools/build_native.py --jobs 4
+            python tools/build_native.py --jobs 4 $scope
           fi
       # House style section 5: memory errors and undefined behaviour are
       # defects, tests included. The frontend suite runs under ASan, UBSan and
@@ -383,6 +401,25 @@ jobs:
             .build/native-${{ matrix.platform }}/frontend/native-local-actions.png
             cache-manifest.json
           if-no-files-found: ignore
+  # The one check branch protection requires: it always reports, and passes
+  # only when the house-style job and every platform passed. A skipped or
+  # cancelled job fails it, so a missing result never reads as green.
+  summary:
+    name: File Manager CI summary
+    needs: [house-style, native]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to have passed
+        env:
+          HOUSE_STYLE: ${{ needs.house-style.result }}
+          NATIVE: ${{ needs.native.result }}
+        run: |
+          echo "house-style: $HOUSE_STYLE"
+          echo "native (every platform): $NATIVE"
+          test "$HOUSE_STYLE" = success
+          test "$NATIVE" = success
   # After the saving jobs of a push to main: delete the cache entries each new
   # save superseded, keeping the newest of each family (template_harness
   # harness/ci_cache.py prune). The only job with actions: write.
