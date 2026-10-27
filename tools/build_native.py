@@ -24,7 +24,12 @@ from backend_bundle import install_bundle
 from fetch_build_inputs import MACOS_RUNTIME_LAYOUT, verify_source_pins
 
 PROVIDER_TOOLS: Path = ROOT / 'gui_forms/tools'
+# The pinned harness (harness.lock), checked out inside this workspace root by
+# template_harness/harness/lock.py or CI's harness-checkout step.
+HARNESS_TOOLS: Path = ROOT / 'template_harness/harness'
 TOOLCHAIN_FILE: Path = ROOT / 'gui_forms/cmake/llvm22.cmake'
+# The one frontend test the bootstrap's smoke build runs.
+SMOKE_TEST: str = 'file_manager_frontend_model_tests'
 # Provider sanitizer leak baseline (macOS framework allocations; see its building docs).
 LEAK_SUPPRESSIONS: Path = PROVIDER_TOOLS / 'sanitizer/lsan.supp'
 
@@ -67,13 +72,16 @@ def select_macos_runtime(host: str) -> None:
 
     The provider cache archive carries the runtime at MACOS_RUNTIME_LAYOUT
     (tools/fetch_build_inputs.py restores it). An explicit GUI_FORMS_LLVM_RUNTIME wins.
+    FILE_MANAGER_LLVM_RUNTIME, the harness's name for this project, is set to
+    the same prefix; GUI.Forms' toolchain file reads GUI_FORMS_LLVM_RUNTIME.
     """
     if host != 'macos':
         return
     if not os.environ.get('GUI_FORMS_LLVM_RUNTIME'):
         os.environ['GUI_FORMS_LLVM_RUNTIME'] = str(ROOT / MACOS_RUNTIME_LAYOUT)
     runtime: str = os.environ['GUI_FORMS_LLVM_RUNTIME']
-    run(sys.executable, PROVIDER_TOOLS / 'macos_runtime_manifest.py', runtime)
+    os.environ['FILE_MANAGER_LLVM_RUNTIME'] = runtime
+    run(sys.executable, HARNESS_TOOLS / 'macos_runtime_manifest.py', runtime)
 
 
 def build_toolkit(jobs: int, test_jobs: int) -> None:
@@ -147,14 +155,23 @@ def main() -> None:
     parser.add_argument('--sanitize', action='store_true',
                         help='build and test the frontend in frontend-sanitize under ASan/UBSan (LSan on '
                              'Linux and macOS) against an already built SDK; no install or package')
+    parser.add_argument('--smoke', action='store_true',
+                        help='the harness bootstrap smoke build: the toolkit through the provider ci_build.py, '
+                             'then only ' + SMOKE_TEST + '; no backend, install or package')
     arguments: argparse.Namespace = parser.parse_args()
     jobs: int = arguments.jobs
     test_jobs: int = arguments.test_jobs
     supplied_sdk: Path | None = arguments.gui_forms_sdk
     skip_components: bool = arguments.skip_components
     sanitize: bool = arguments.sanitize
+    smoke: bool = arguments.smoke
     if jobs < 1 or test_jobs < 1:
         parser.error('--jobs and --test-jobs must be positive')
+    if smoke and sanitize:
+        parser.error('--smoke and --sanitize are separate builds')
+    if smoke:
+        # The smoke build needs no backend: it packages nothing.
+        skip_components = True
     configuration: HostConfiguration = host_configuration()
     host: str = configuration.host
     architecture: str = configuration.architecture
@@ -217,6 +234,15 @@ def main() -> None:
     if previous_identity != sdk_identity:
         # Installed header mtimes alone cannot protect a changed public C++ layout.
         run('cmake', '--build', frontend, '--target', 'clean')
+    if smoke:
+        # At this GUI.Forms pin ci_build.py has already built and tested the
+        # whole toolkit; the frontend contributes one test.
+        run('cmake', '--build', frontend, '--target', SMOKE_TEST, '--parallel', jobs)
+        os.environ['GUI_FORMS_FONT_DIR'] = str(ROOT / 'gui_forms/assets/fonts')
+        run('ctest', '--test-dir', frontend, '--output-on-failure', '--timeout', '120',
+            '--tests-regex', '^' + SMOKE_TEST + '$')
+        sdk_stamp.write_text(sdk_identity + '\n', encoding='utf-8')
+        return
     run('cmake', '--build', frontend, '--parallel', jobs)
     os.environ['GUI_FORMS_FONT_DIR'] = str(ROOT / 'gui_forms/assets/fonts')
     run('ctest', '--test-dir', frontend, '--output-on-failure', '--timeout', '120', '--parallel', test_jobs)

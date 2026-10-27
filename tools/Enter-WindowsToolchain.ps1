@@ -21,7 +21,7 @@ if ([string]::IsNullOrWhiteSpace($MsysRoot)) {
 [string]$fileManagerRequiredTool = ''
 foreach ($fileManagerRequiredTool in @('clang.exe', 'clang++.exe', 'cmake.exe', 'ninja.exe', 'ccache.exe', 'python.exe')) {
     if (-not (Test-Path -LiteralPath (Join-Path $fileManagerClangBin $fileManagerRequiredTool) -PathType Leaf)) {
-        throw "Missing CLANG64 tool $fileManagerRequiredTool in $fileManagerClangBin. Extract the GUI.Forms Windows toolchain (gui_forms/tools/windows_toolchain.py) and set FILE_MANAGER_MSYS_ROOT to its msys64 directory."
+        throw "Missing CLANG64 tool $fileManagerRequiredTool in $fileManagerClangBin. Extract the GUI.Forms Windows toolchain (template_harness/harness/windows_toolchain.py restore) and set FILE_MANAGER_MSYS_ROOT to its msys64 directory."
     }
 }
 if (-not (Test-Path -LiteralPath (Join-Path $fileManagerUsrBin 'sh.exe') -PathType Leaf)) {

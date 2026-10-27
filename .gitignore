@@ -24,3 +24,11 @@ cache-manifest.json
 /.ci/
 /gui-forms-toolchain-windows-x64.tar.zst
 /gui-forms-toolchain-windows-x64.json
+
+# The harness workspace (template_harness/docs/adopting.md, "root layout"):
+# File Manager is the workspace root, so the pinned harness, the bootstrap's
+# notes clones and the in-house projects clone sit inside this checkout.
+/template_harness/
+/notes/
+/notes-*/
+/projects/
