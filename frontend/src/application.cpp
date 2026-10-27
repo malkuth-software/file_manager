@@ -714,7 +714,7 @@ void Application::install_dynamic_controls() {
     (*criteria_rack_).set_modules(
         {kind_criteria_module(), modified_criteria_module()});
 
-    std::shared_ptr<gui_forms::TableLayoutPanel> criteria_actions = std::make_shared<gui_forms::TableLayoutPanel>(
+    std::shared_ptr<gui_forms::TableLayoutPanelCompat> criteria_actions = std::make_shared<gui_forms::TableLayoutPanelCompat>(
         gui_forms::StableId("fm.criteria.actions"));
     (*criteria_actions).set_column_count(1);
     (*criteria_actions).set_row_count(2);
@@ -2968,7 +2968,7 @@ void Application::rebuild_settings_page() {
         !services_page);
     (*form_.file_manager_app_shell_settings_body_page_description).set_visible(
         !services_page);
-    const std::shared_ptr<gui_forms::FlowLayoutPanel> host = form_.file_manager_app_shell_settings_body_page_host;
+    const std::shared_ptr<gui_forms::FlowLayoutPanelCompat> host = form_.file_manager_app_shell_settings_body_page_host;
     (*host).clear_children();
     settings_property_list_.reset();
     if (settings_tab_ == "services") {
@@ -3049,7 +3049,7 @@ void Application::rebuild_settings_page() {
 }
 
 void Application::rebuild_services_page() {
-    const std::shared_ptr<gui_forms::FlowLayoutPanel> host = form_.file_manager_app_shell_settings_body_page_host;
+    const std::shared_ptr<gui_forms::FlowLayoutPanelCompat> host = form_.file_manager_app_shell_settings_body_page_host;
     std::vector<gui_forms::PropertyGroupSpec> groups{};
     groups.push_back({
         "fm.services.observation", "OBSERVATION",

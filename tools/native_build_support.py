@@ -44,11 +44,12 @@ def command_arguments(arguments: tuple[str | Path | int, ...]) -> list[str]:
     return converted
 
 
-def run(*arguments: str | Path | int, cwd: Path = ROOT) -> None:
+def run(*arguments: str | Path | int, cwd: Path = ROOT, environment: dict[str, str] | None = None) -> None:
+    """Run a command and raise on failure; environment, when given, replaces the inherited one."""
     command: list[str] = command_arguments(arguments)
     description: str = ' '.join(command)
     print('+ ' + description, flush=True)
-    subprocess.run(command, cwd=cwd, check=True)
+    subprocess.run(command, cwd=cwd, env=environment, check=True)
 
 
 def output(*arguments: str | Path | int, cwd: Path = ROOT) -> str:

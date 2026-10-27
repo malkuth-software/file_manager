@@ -75,9 +75,9 @@ def _cpp_type(
         return "gui_forms::Button"
     display = geometry.get("display", {}).get("value")
     if has_children and display == "grid":
-        return "gui_forms::TableLayoutPanel"
+        return "gui_forms::TableLayoutPanelCompat"
     if has_children:
-        return "gui_forms::FlowLayoutPanel"
+        return "gui_forms::FlowLayoutPanelCompat"
     return "gui_forms::Label"
 
 
@@ -279,10 +279,10 @@ def generate_gui_tree(
         '#include "gui_forms/controls/button_base/button/drop_down_button/drop_down_button.hpp"',
         '#include "gui_forms/controls/label/label.hpp"',
         '#include "gui_forms/controls/scrollable_control/container_control/command_overflow_panel/command_overflow_panel.hpp"',
-        '#include "gui_forms/controls/scrollable_control/container_control/flow_layout_panel/flow_layout_panel.hpp"',
+        '#include "gui_forms/controls/scrollable_control/container_control/flow_layout_panel_compat/flow_layout_panel_compat.hpp"',
         '#include "gui_forms/controls/scrollable_control/container_control/responsive_track_panel/responsive_track_panel.hpp"',
         '#include "gui_forms/controls/scrollable_control/container_control/split_container/split_container.hpp"',
-        '#include "gui_forms/controls/scrollable_control/container_control/table_layout_panel/table_layout_panel.hpp"',
+        '#include "gui_forms/controls/scrollable_control/container_control/table_layout_panel_compat/table_layout_panel_compat.hpp"',
         '#include "gui_forms/image_list.hpp"',
         '#include "gui_forms/window.hpp"',
         "", f"namespace {namespace} {{", "", "struct NativeForm final {",
@@ -548,7 +548,7 @@ def generate_gui_tree(
                     f"{repr(transition)})));",
                 ]
             )
-        elif node_type == "gui_forms::FlowLayoutPanel":
+        elif node_type == "gui_forms::FlowLayoutPanelCompat":
             if display == "flex":
                 source_lines.append(
                     f"    apply_native_flow_layout({index}U, *form.{symbol});"
@@ -592,7 +592,7 @@ def generate_gui_tree(
                         "gui_forms::AutoSizeMode::grow_only);",
                     ]
                 )
-        elif node_type == "gui_forms::TableLayoutPanel":
+        elif node_type == "gui_forms::TableLayoutPanelCompat":
             source_lines.append(
                 f"    apply_native_grid_layout({index}U, *form.{symbol});"
             )
@@ -717,7 +717,7 @@ def generate_gui_tree(
             source_lines.append(
                 f"    form.{parent_symbol}->add_child(form.{child_symbol});"
             )
-        if parent_type == "gui_forms::FlowLayoutPanel":
+        if parent_type == "gui_forms::FlowLayoutPanelCompat":
             grow = flex_grows.get(node["index"], 0.0)
             parent_geometry = geometry_by_node[parent_index]
             parent_direction = parent_geometry.get(
@@ -737,7 +737,7 @@ def generate_gui_tree(
                     f"    form.{parent_symbol}->set_flex_grow("
                     f"*form.{child_symbol}, {repr(grow)});"
                 )
-        elif parent_type == "gui_forms::TableLayoutPanel":
+        elif parent_type == "gui_forms::TableLayoutPanelCompat":
             source_lines.append(
                 f"    apply_native_grid_cell({parent_index}U, {node['index']}U, "
                 f"*form.{parent_symbol}, *form.{child_symbol});"
@@ -939,12 +939,12 @@ def generate_gui_tree(
         "flow_count": sum(
             1
             for node in runtime_nodes
-            if types[node["index"]] == "gui_forms::FlowLayoutPanel"
+            if types[node["index"]] == "gui_forms::FlowLayoutPanelCompat"
         ),
         "grid_count": sum(
             1
             for node in runtime_nodes
-            if types[node["index"]] == "gui_forms::TableLayoutPanel"
+            if types[node["index"]] == "gui_forms::TableLayoutPanelCompat"
         ),
         "responsive_track_count": sum(
             1 for node in runtime_nodes
@@ -971,7 +971,7 @@ def generate_gui_tree(
         "implicit_block_flow_nodes": [
             node["id"]
             for node in runtime_nodes
-            if types[node["index"]] == "gui_forms::FlowLayoutPanel"
+            if types[node["index"]] == "gui_forms::FlowLayoutPanelCompat"
             and geometry_by_node[node["index"]].get("display", {}).get("value")
             not in {"flex", "grid"}
         ],

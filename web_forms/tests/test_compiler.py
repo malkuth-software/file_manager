@@ -923,7 +923,7 @@ class CompilerTest(unittest.TestCase):
             self.assertEqual(10, shell_report["button_count"])
             self.assertEqual(2, shell_report["grid_count"])
             self.assertIn(
-                "std::shared_ptr<gui_forms::TableLayoutPanel> "
+                "std::shared_ptr<gui_forms::TableLayoutPanelCompat> "
                 "standard_app_shell_workspace",
                 shell_header.read_text(),
             )

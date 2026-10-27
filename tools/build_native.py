@@ -33,6 +33,12 @@ PROVIDER_TOOLS: Path = ROOT / 'gui_forms/tools'
 # The pinned harness (harness.lock), checked out inside this workspace root by
 # template_harness/harness/lock.py or CI's harness-checkout step.
 HARNESS_TOOLS: Path = ROOT / 'template_harness/harness'
+# The harness tools read their product's names (environment variables, test
+# prefixes, source root) from HARNESS_PROJECT. This script and the frontend
+# configure it runs are File Manager's; the toolkit build it starts is
+# GUI.Forms' own, run as GUI.Forms' CI runs it, in this same workspace.
+FILE_MANAGER_PROJECT: Path = ROOT / 'template_harness/projects/file_manager.toml'
+GUI_FORMS_PROJECT: Path = ROOT / 'template_harness/projects/gui_forms.toml'
 # The submodule's toolchain file; the default ToolkitSource and the CI SDK export use it.
 TOOLCHAIN_FILE: Path = ROOT / 'gui_forms/cmake/llvm22.cmake'
 # The one frontend test the bootstrap's smoke build runs.
@@ -41,6 +47,10 @@ SMOKE_TEST: str = 'file_manager_frontend_model_tests'
 LOCKSTEP_SCHEMA: int = 1
 LOCKSTEP_FIELDS: tuple[str, ...] = ('commit', 'target', 'features', 'compiler', 'prefix', 'package_dir',
                                     'source', 'toolchain_file', 'font_dir', 'llvm_runtime', 'lang')
+# Optional record fields: harness is the template_harness commit lockstep.py
+# placed beside the source clone ("" when that GUI.Forms commit has no
+# harness.lock); lockstep.py checks it, so it is only reported here.
+LOCKSTEP_OPTIONAL_FIELDS: tuple[str, ...] = ('harness',)
 # The lockstep feature set File Manager links: its native host, CPU Skia and
 # the text stack, which only the whole toolkit ("all") provides.
 LOCKSTEP_FEATURES: str = 'all'
@@ -123,6 +133,11 @@ def lockstep_source(record_path: Path, configuration: HostConfiguration) -> Tool
         if not isinstance(value, str):
             raise RuntimeError(f'{record_path}: field {field} is missing or not a string')
         values[field] = value
+    for field in LOCKSTEP_OPTIONAL_FIELDS:
+        optional: object = record.get(field, '')
+        if not isinstance(optional, str):
+            raise RuntimeError(f'{record_path}: field {field} is not a string')
+        values[field] = optional
     target: str = configuration.host + '-' + configuration.architecture
     if values['target'] != target:
         raise RuntimeError(f'{record_path}: lockstep target {values["target"]}, this host is {target}')
@@ -144,7 +159,8 @@ def lockstep_source(record_path: Path, configuration: HostConfiguration) -> Tool
     result: ToolkitSource = ToolkitSource(
         source=source, toolchain_file=Path(values['toolchain_file']), font_dir=Path(values['font_dir']),
         revision=values['commit'], sdk=prefix, llvm_runtime=values['llvm_runtime'],
-        description='lockstep ' + values['commit'] + ' ' + values['features'] + ' (' + str(record_path) + ')')
+        description='lockstep ' + values['commit'] + ' ' + values['features'] + ' harness '
+        + (values['harness'] or 'none') + ' (' + str(record_path) + ')')
     return result
 
 
@@ -180,7 +196,11 @@ def select_macos_runtime(host: str, toolkit: ToolkitSource) -> None:
 
 def build_toolkit(jobs: int, test_jobs: int) -> None:
     """Build, test and install into .build/native-<platform>/gui-forms-sdk exactly as provider CI does."""
-    run(sys.executable, PROVIDER_TOOLS / 'ci_build.py', '--jobs', jobs, '--test-jobs', test_jobs)
+    environment: dict[str, str] = dict(os.environ)
+    environment['HARNESS_PROJECT'] = str(GUI_FORMS_PROJECT)
+    environment['HARNESS_WORKSPACE'] = str(ROOT)
+    run(sys.executable, PROVIDER_TOOLS / 'ci_build.py', '--jobs', jobs, '--test-jobs', test_jobs,
+        environment=environment)
 
 
 def toolchain_identity(toolkit: ToolkitSource) -> dict[str, str]:
@@ -276,6 +296,10 @@ def main() -> None:
         skip_components = True
     if lockstep_record is not None and supplied_sdk is not None:
         parser.error('--gui-forms-lockstep names its own SDK; leave out --gui-forms-sdk')
+    # CI's harness-checkout sets these; a local run gets the same identity
+    # before the provider's ci_build module is imported.
+    os.environ.setdefault('HARNESS_PROJECT', str(FILE_MANAGER_PROJECT))
+    os.environ.setdefault('HARNESS_WORKSPACE', str(ROOT))
     configuration: HostConfiguration = host_configuration()
     host: str = configuration.host
     architecture: str = configuration.architecture
