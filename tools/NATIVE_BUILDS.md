@@ -55,6 +55,26 @@ and later), both locks must name one commit; CI's harness-checkout step fails
 otherwise. GUI.Forms' own `ci_build.py`, `package_programs.py` and sanitizer
 suppressions are still used from `gui_forms/tools/`.
 
+**Local lockstep builds (owner direction, 2026-10-27).** On the shared
+development machine every product builds against one local GUI.Forms commit,
+built once by template_harness `harness/lockstep.py` and installed under
+`D:/malkuth/cache/lockstep/`. Pass its record instead of building the
+submodule:
+
+```sh
+python3 tools/build_native.py --gui-forms-lockstep D:/malkuth/cache/lockstep/current-windows-x64.json --skip-components
+```
+
+The record supplies the installed prefix, the source clone (its `ci_build.py`
+configure record, sanitizer options and `lsan.supp`), the toolchain file, the
+fonts and the macOS runtime. The build refuses a record of another schema or
+target, a clone not at the recorded commit, or a `clang` on `PATH` other than
+the recorded compiler, and sets `LANG` to the recorded locale, which ccache
+hashes. The lockstep commit may be newer than the submodule pin, so such a
+build can need API changes the pinned CI build does not; a File Manager
+change that needs a GUI.Forms change waits until that change is merged and
+pinned. CI keeps building the pinned submodule.
+
 | Platform | Compiler | Notes |
 |---|---|---|
 | Windows x64 | the provider's published MSYS2 CLANG64 tree (`template_harness/harness/windows_toolchain.json`) | extract it at its producer root, `D:\a\_temp\msys64`; system header paths enter the hash |

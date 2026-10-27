@@ -19,6 +19,7 @@ import collect_diagnostics
 import native_build_support
 import native_macos_package
 import package_native
+import build_native
 
 class BoundedStream(io.BytesIO):
     def __init__(self, contents: bytes) -> None:
@@ -159,6 +160,79 @@ class NativeToolTests(unittest.TestCase):
         self.assertEqual(native_macos_package.deployment_versions(commands), ['26.0', '11.0.0'])
         self.assertEqual(native_macos_package.version_key('13.0'), native_macos_package.version_key('13.0.0'))
         self.assertGreater(native_macos_package.version_key('26.0'), native_macos_package.version_key('11.0.0'))
+
+
+class LockstepRecordTests(unittest.TestCase):
+    """build_native.lockstep_source accepts only a record that matches this host, clone and compiler."""
+
+    def setUp(self) -> None:
+        self.scratch: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory()
+        root: Path = Path(self.scratch.name)
+        self.source: Path = root / 'gui_forms'
+        self.source.mkdir()
+        (self.source / 'marker.txt').write_text('lockstep fixture\n', encoding='utf-8')
+        git: list[str] = ['git', '-C', str(self.source), '-c', 'user.name=fixture', '-c', 'user.email=fixture@invalid']
+        subprocess.run(git[:3] + ['init', '-q'], check=True)
+        subprocess.run(git + ['add', 'marker.txt'], check=True)
+        subprocess.run(git + ['commit', '-q', '-m', 'fixture'], check=True)
+        completed: subprocess.CompletedProcess[str] = subprocess.run(
+            git[:3] + ['rev-parse', 'HEAD'], check=True, capture_output=True, text=True)
+        self.commit: str = completed.stdout.strip()
+        self.compiler: Path = root / 'clang.exe'
+        self.compiler.write_bytes(b'fixture compiler')
+        self.other_compiler: Path = root / 'other-clang.exe'
+        self.other_compiler.write_bytes(b'another compiler')
+        self.prefix: Path = root / 'prefix'
+        self.configuration: build_native.HostConfiguration = build_native.HostConfiguration(
+            host='windows', architecture='x64')
+        self.record: dict[str, object] = {
+            'schema': 1, 'commit': self.commit, 'target': 'windows-x64', 'features': 'all',
+            'toolchain_identity': 'fixture',
+            'compiler': str(self.compiler), 'prefix': str(self.prefix),
+            'package_dir': str(self.prefix / 'lib/cmake/GUIForms'), 'source': str(self.source),
+            'toolchain_file': str(self.source / 'cmake/llvm22.cmake'),
+            'font_dir': str(self.prefix / 'share/GUIForms/fonts'), 'llvm_runtime': '',
+            'ccache_dir': str(root / 'ccache'), 'ccache_basedir': str(root), 'lang': 'en_US.UTF-8'}
+        self.record_path: Path = root / 'current-windows-x64.json'
+        self.lang: str = ''
+
+    def tearDown(self) -> None:
+        self.scratch.cleanup()
+
+    def read(self) -> build_native.ToolkitSource:
+        """Read the record with clang on PATH resolving to the fixture compiler and LANG=C before."""
+        self.record_path.write_text(json.dumps(self.record), encoding='utf-8')
+        with patch.object(build_native.shutil, 'which', return_value=str(self.compiler)):
+            with patch.dict(build_native.os.environ, {'LANG': 'C'}):
+                result: build_native.ToolkitSource = build_native.lockstep_source(
+                    self.record_path, self.configuration)
+                self.lang = build_native.os.environ['LANG']
+        return result
+
+    def test_accepted_record(self) -> None:
+        toolkit: build_native.ToolkitSource = self.read()
+        self.assertEqual(toolkit.revision, self.commit)
+        self.assertEqual(toolkit.sdk, self.prefix)
+        self.assertEqual(toolkit.source, self.source)
+        self.assertEqual(toolkit.font_dir, self.prefix / 'share/GUIForms/fonts')
+        self.assertEqual(self.lang, 'en_US.UTF-8')
+
+    def test_refused_records(self) -> None:
+        refusals: list[tuple[str, object]] = [
+            ('schema', 2), ('target', 'linux-x64'), ('features', 'core'), ('features', None),
+            ('commit', '0' * 40),
+            ('package_dir', str(self.prefix / 'lib')), ('compiler', str(self.other_compiler)),
+            ('font_dir', None)]
+        field: str
+        value: object
+        for field, value in refusals:
+            original: object = self.record[field]
+            self.record[field] = value
+            with self.subTest(field=field):
+                with self.assertRaises(RuntimeError):
+                    self.read()
+                self.assertEqual(self.lang, '')
+            self.record[field] = original
 
 
 if __name__ == '__main__':
