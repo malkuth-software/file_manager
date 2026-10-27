@@ -66,19 +66,14 @@ reviewing it. Record the exact reviewed scope and remaining violations.
   settings/service controls. Frontend 001 opens only after Orchestrator Core 1.0
   is available, the named GUI.Forms go-ahead is recorded, and the architect
   explicitly directs implementation to begin.
-- `engine/`, `gui_forms/`, and `kolmogrov/` remain independently buildable and
+- `engine/` and `gui_forms/` remain independently buildable and
   own their private implementations.
-- `malkuth/` is the planning-only suite release, installer, documentation, and
-  website program. It does not absorb component versions or open publishing
-  implementation before its release gates.
-- `paint/` and `text_editor/` are interview-first planning subprojects. Their
-  planning gates are open; source/build implementation remains closed until
-  their local dependency gates and explicit architect start directions pass.
-- `games/` and `lexicon/` are planning-only future projects. Research/interview
-  work is open; source/build/provider implementation remains closed until their
-  local gates and explicit architect start directions pass.
-- `plugin_runtime/` is frozen legacy research input. New runtime implementation
-  belongs to Orchestrator's plugin-supervisor subsystem after its gate opens.
+- `games/`, `gui_forms_rewrite/`, `kolmogrov/`, `lexicon/`, `malkuth/`,
+  `paint/`, `plugin_runtime/` and `text_editor/`, the monorepo's other
+  projects' planning, interviews and research, left this repository on
+  2026-10-27. They are archived in the private `malkuth-software/projects`
+  repository at `archive/file_manager-legacy/<folder>/` for the owner's
+  investigation.
 - `web_forms/` is the planning-stage Web.Forms authoring/compiler project. It
   may define a bounded browser-valid HTML/CSS source profile and generated C++
   contract over public GUI.Forms; it may not introduce JavaScript, a runtime

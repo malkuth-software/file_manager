@@ -5,9 +5,11 @@ description: >-
   template_harness commit out, detached, at template_harness/, verifies it,
   and names the workspace and File Manager's project file for every later
   step. Once the gui_forms submodule carries its own harness.lock (GUI.Forms
-  #408 and later), its shims use this same checkout, so both locks must name
-  one commit; this step fails when they differ. Run it after the product's
-  own actions/checkout, which cleans the workspace.
+  #408 and later), its shims use this same checkout, so File Manager's lock
+  must name the provider's commit or a later one (the provider's pin an
+  ancestor of ours); the two are made equal again at each submodule move.
+  Run it after the product's own actions/checkout, which cleans the
+  workspace.
 outputs:
   commit:
     description: The locked harness commit.
@@ -25,14 +27,16 @@ runs:
           echo "harness-checkout: harness.lock needs one repository line and one 40-hex commit line" >&2
           exit 1
         fi
+        provider=""
         if [ -f gui_forms/harness.lock ]; then
           provider=$(tr -d '\r' < gui_forms/harness.lock | sed -n 's/^commit = "\([0-9a-f]\{40\}\)"$/\1/p')
-          if [ "$provider" != "$commit" ]; then
-            echo "harness-checkout: harness.lock pins $commit but gui_forms/harness.lock pins $provider; bump them together" >&2
+          if [ -z "$provider" ]; then
+            echo "harness-checkout: gui_forms/harness.lock has no 40-hex commit line" >&2
             exit 1
           fi
         fi
         echo "repository=$repository" >> "$GITHUB_OUTPUT"
+        echo "provider=$provider" >> "$GITHUB_OUTPUT"
         echo "commit=$commit" >> "$GITHUB_OUTPUT"
     - uses: actions/checkout@v4
       with:
@@ -40,13 +44,20 @@ runs:
         ref: ${{ steps.lock.outputs.commit }}
         path: template_harness
         persist-credentials: false
+        # The whole (small) history, for the ancestor check below.
+        fetch-depth: 0
     - shell: bash
       env:
         COMMIT: ${{ steps.lock.outputs.commit }}
+        PROVIDER: ${{ steps.lock.outputs.provider }}
       run: |
         head=$(git -C template_harness rev-parse HEAD)
         if [ "$head" != "$COMMIT" ]; then
           echo "harness-checkout: template_harness is at $head, not the locked $COMMIT" >&2
+          exit 1
+        fi
+        if [ -n "$PROVIDER" ] && ! git -C template_harness merge-base --is-ancestor "$PROVIDER" "$COMMIT"; then
+          echo "harness-checkout: harness.lock pins $COMMIT, which does not contain gui_forms/harness.lock's $PROVIDER; move File Manager's lock to it or later" >&2
           exit 1
         fi
         {
