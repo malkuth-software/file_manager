@@ -22,9 +22,10 @@ class CollectArchivesTests(unittest.TestCase):
         self.dist: Path = Path(self.scratch.name)
         platform: str
         for platform in PLATFORMS:
-            extension: str = '.zip' if platform.startswith('windows-') else '.tar.gz'
-            name: str = publish_release.archive_name(VERSION, platform, COMMIT) + extension
-            self.write_archive(name, platform.encode('utf-8'))
+            extension: str
+            for extension in publish_release.release_extensions(platform).values():
+                name: str = publish_release.archive_name(VERSION, platform, COMMIT) + extension
+                self.write_archive(name, (platform + extension).encode('utf-8'))
 
     def tearDown(self) -> None:
         self.scratch.cleanup()
@@ -39,10 +40,15 @@ class CollectArchivesTests(unittest.TestCase):
         archives: list[publish_release.ReleaseArchive] = publish_release.collect_archives(
             self.dist, VERSION, COMMIT)
         platforms: list[str] = []
+        expected: list[str] = []
         entry: publish_release.ReleaseArchive
         for entry in archives:
-            platforms.append(entry.platform)
-        self.assertEqual(platforms, list(PLATFORMS))
+            platforms.append(entry.platform + ' ' + entry.kind)
+        platform: str
+        for platform in PLATFORMS:
+            expected.append(platform + ' archive')
+            expected.append(platform + ' installer')
+        self.assertEqual(platforms, expected)
         notes: str = publish_release.release_notes(VERSION, COMMIT, 'owner/name', archives)
         self.assertIn('File Manager 0.1.7', notes)
         self.assertIn('linux-arm64', notes)
@@ -53,11 +59,16 @@ class CollectArchivesTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             publish_release.collect_archives(self.dist, VERSION, COMMIT)
 
-    def test_refuses_a_missing_platform(self) -> None:
-        name: str = publish_release.archive_name(VERSION, 'macos-arm64', COMMIT) + '.tar.gz'
-        (self.dist / name).unlink()
-        with self.assertRaises(RuntimeError):
-            publish_release.collect_archives(self.dist, VERSION, COMMIT)
+    def test_refuses_a_missing_platform_or_installer(self) -> None:
+        extension: str
+        for extension in ('.tar.gz', '.pkg'):
+            name: str = publish_release.archive_name(VERSION, 'macos-arm64', COMMIT) + extension
+            content: bytes = (self.dist / name).read_bytes()
+            (self.dist / name).unlink()
+            with self.subTest(extension=extension):
+                with self.assertRaises(RuntimeError):
+                    publish_release.collect_archives(self.dist, VERSION, COMMIT)
+            self.write_archive(name, content)
 
     def test_refuses_a_dirty_or_other_version_archive(self) -> None:
         dirty: str = publish_release.archive_name(VERSION, 'linux-x64', COMMIT) + '-dirty.tar.gz'

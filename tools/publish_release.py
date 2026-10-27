@@ -4,8 +4,9 @@
 native-builds.yml's publish job runs this on a push to main once the
 "File Manager CI summary" check passed. It:
 
-  1. checks the downloaded archives: exactly one per platform, named for this
-     version and commit, never a dirty tree, each matching its .sha256 file;
+  1. checks the downloaded files: exactly one archive and one installer per
+     platform, named for this version and commit, never a dirty tree, each
+     matching its .sha256 file;
   2. finds or creates the DRAFT prerelease v<version> targeting the tested
      commit, uploads every archive and checksum, then publishes it;
   3. verifies the published tag names the tested commit.
@@ -32,9 +33,21 @@ COMMIT_PATTERN: str = r'[0-9a-f]{40}'
 
 @dataclass(frozen=True)
 class ReleaseArchive:
+    """One released file (kind 'archive' or 'installer') and its checksum file."""
     platform: str
+    kind: str
     archive: Path
     checksum: Path
+
+
+def release_extensions(platform: str) -> dict[str, str]:
+    """The archive and installer extensions package_native.py and native_installers.py write."""
+    if platform.startswith('windows-'):
+        return {'archive': '.zip', 'installer': '-setup.exe'}
+    if platform.startswith('macos-'):
+        return {'archive': '.tar.gz', 'installer': '.pkg'}
+    result: dict[str, str] = {'archive': '.tar.gz', 'installer': '.deb'}
+    return result
 
 
 def archive_name(version: str, platform: str, commit: str) -> str:
@@ -44,12 +57,14 @@ def archive_name(version: str, platform: str, commit: str) -> str:
 
 
 def collect_archives(dist: Path, version: str, commit: str) -> list[ReleaseArchive]:
-    """Return one checked archive per platform in PLATFORMS order; raise on anything else in dist."""
-    expected: dict[str, str] = {}
+    """Return each platform's checked archive and installer in PLATFORMS order; raise on anything else."""
+    expected: dict[str, tuple[str, str]] = {}
     platform: str
     for platform in PLATFORMS:
-        extension: str = '.zip' if platform.startswith('windows-') else '.tar.gz'
-        expected[archive_name(version, platform, commit) + extension] = platform
+        kind: str
+        extension: str
+        for kind, extension in release_extensions(platform).items():
+            expected[archive_name(version, platform, commit) + extension] = (platform, kind)
     present: list[Path] = sorted(path for path in dist.iterdir() if path.is_file())
     names: set[str] = set()
     path: Path
@@ -67,7 +82,8 @@ def collect_archives(dist: Path, version: str, commit: str) -> list[ReleaseArchi
     if missing:
         raise RuntimeError('missing release files: ' + ', '.join(missing))
     archives: list[ReleaseArchive] = []
-    for name, platform in expected.items():
+    identity: tuple[str, str]
+    for name, identity in expected.items():
         archive: Path = dist / name
         checksum: Path = dist / (name + '.sha256')
         checksum_text: str = checksum.read_text(encoding='utf-8')
@@ -77,7 +93,7 @@ def collect_archives(dist: Path, version: str, commit: str) -> list[ReleaseArchi
         actual: str = sha256(archive)
         if fields[0] != actual:
             raise RuntimeError(name + ' hashes to ' + actual + ', not its recorded ' + fields[0])
-        archives.append(ReleaseArchive(platform=platform, archive=archive, checksum=checksum))
+        archives.append(ReleaseArchive(platform=identity[0], kind=identity[1], archive=archive, checksum=checksum))
     return archives
 
 
@@ -90,7 +106,10 @@ def release_notes(version: str, commit: str, repository: str, archives: list[Rel
         'A prerelease: macOS builds are ad-hoc signed and not notarized; Windows and Linux '
         'builds are unsigned. Extract the whole archive and read its README.txt.',
         '',
-        '| Platform | Archive | SHA-256 |',
+        'Installers: Windows per-user setup (no administrator rights), macOS package into '
+        '/Applications/File Manager, Debian package into /opt/file-manager.',
+        '',
+        '| Platform | File | SHA-256 |',
         '| --- | --- | --- |']
     entry: ReleaseArchive
     for entry in archives:

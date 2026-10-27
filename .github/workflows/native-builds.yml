@@ -66,6 +66,7 @@ jobs:
           python3 -B tools/native_build_tests.py
           python3 -B tools/export_native_sdks_tests.py
           python3 -B tools/publish_release_tests.py
+          python3 -B tools/native_installers_tests.py
   native:
     name: ${{ matrix.platform }}
     needs: house-style
@@ -255,7 +256,10 @@ jobs:
         run: |
           ccache --zero-stats
           scope=""
-          if [ "$FRONTEND_ONLY" = true ]; then scope="--skip-components"; fi
+          # The Windows installer is checked by a silent install into scratch
+          # and uninstall; the runner is disposable (tools/native_installers.py).
+          scope="--installer-install-check"
+          if [ "$FRONTEND_ONLY" = true ]; then scope="$scope --skip-components"; fi
           if [ -n "$FILE_MANAGER_RELEASE_VERSION" ]; then
             scope="$scope --release-version $FILE_MANAGER_RELEASE_VERSION"
           fi
@@ -374,6 +378,9 @@ jobs:
           path: |
             .build/native-${{ matrix.platform }}/dist/*.zip
             .build/native-${{ matrix.platform }}/dist/*.tar.gz
+            .build/native-${{ matrix.platform }}/dist/*-setup.exe
+            .build/native-${{ matrix.platform }}/dist/*.pkg
+            .build/native-${{ matrix.platform }}/dist/*.deb
             .build/native-${{ matrix.platform }}/dist/*.sha256
           if-no-files-found: error
       - name: Upload verified matching native SDKs
@@ -396,6 +403,7 @@ jobs:
             .build/native-${{ matrix.platform }}/backend-consumption.json
             .build/native-${{ matrix.platform }}/gui-forms-consumption.json
             .build/native-${{ matrix.platform }}/package-check.json
+            .build/native-${{ matrix.platform }}/installer-check.json
             .build/native-${{ matrix.platform }}/source-state-*.json
             .build/native-${{ matrix.platform }}/paint-cost/*
             .build/native-${{ matrix.platform }}/focused-cpu/*
