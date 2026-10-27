@@ -237,7 +237,13 @@ std::size_t matching_pixels(NSView* const view, const gui_forms::Rect bounds,
                 matched = color.redComponent < 0.15 && color.greenComponent > 0.75 &&
                     color.blueComponent > 0.65 && color.blueComponent < 0.9;
             } else if (target == PixelMatch::dark_text) {
-                matched = color.redComponent < 0.2 && color.greenComponent < 0.25 && color.blueComponent < 0.3;
+                // Glyph ink on a light header: every channel below 0.35. The
+                // earlier per-channel 0.2/0.25/0.3 cut found 9 pixels of
+                // GUI.Forms 0.2's navy header text once AppKit converted the CI
+                // display's colour space to sRGB (run 40466042854; 18 in the
+                // saved capture's unconverted values). In those unconverted
+                // values this cut finds 32 and none on empty header or list.
+                matched = color.redComponent < 0.35 && color.greenComponent < 0.35 && color.blueComponent < 0.35;
             } else if (target == PixelMatch::caption_text) {
                 matched = color.redComponent < 0.6 && color.greenComponent < 0.65 && color.blueComponent < 0.7;
             } else {

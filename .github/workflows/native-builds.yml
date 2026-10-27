@@ -196,7 +196,12 @@ jobs:
       - name: Build or verify the macOS 14 LLVM runtime
         if: runner.os == 'macOS'
         run: |
-          if [ ! -f "$GUI_FORMS_LLVM_RUNTIME/runtime-manifest.json" ]; then
+          # A restored runtime matches only the provider's compiler and SDK;
+          # on another runner image the manifest check fails, and its remedy
+          # is a rebuild. A missing runtime is built the same way.
+          if [ ! -f "$GUI_FORMS_LLVM_RUNTIME/runtime-manifest.json" ] ||
+             ! python gui_forms/tools/macos_runtime_manifest.py "$GUI_FORMS_LLVM_RUNTIME"; then
+            rm -rf "$GUI_FORMS_LLVM_RUNTIME"
             python gui_forms/tools/build_macos_runtimes.py --work "$RUNNER_TEMP/llvm-runtimes" --prefix "$GUI_FORMS_LLVM_RUNTIME" --jobs 4
           fi
           python gui_forms/tools/macos_runtime_manifest.py "$GUI_FORMS_LLVM_RUNTIME"

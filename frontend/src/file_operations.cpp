@@ -915,7 +915,17 @@ OperationResult FileOperationService::copy_object(
         value.recoverable_object_retained = !cleaned;
         return value;
     }
-    const std::error_code error = rename_no_replace(stage, destination);
+    const StagePublication publication = publish_stage_no_replace(stage, destination);
+    if (publication.error && publication.published) {
+        // The copy is at its destination, but its final mode is not restored.
+        OperationResult value = result(OperationKind::copy_object, OperationTerminal::failed,
+                            "publication_mode_failed", publication.error.message(),
+                            source, destination, expected);
+        value.operation_id = operation_id;
+        value.recoverable_object_retained = true;
+        return value;
+    }
+    const std::error_code error = publication.error;
     if (error) {
         const bool cleaned = cleanup_stage(stage, stage_identity);
         std::filesystem::path reported_path = cleaned ? destination : stage;

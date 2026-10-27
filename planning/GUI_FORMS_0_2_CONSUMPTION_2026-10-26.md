@@ -153,6 +153,49 @@ on Windows in the sanitized tree only, which is never packaged. The guard is
 not a CI gate yet, because it would fail on the generated frames; it becomes
 one when the generator is replaced.
 
+## Findings from the first CI runs (PR #61)
+
+**MEASURED** in CI runs 40459593556 and 40466042854, which exercise macOS and
+Linux for the first time at this pin. Windows passed throughout.
+
+- **Linux packaging.** The packaged `libgui_forms_application.so.0` had no
+  RUNPATH. A library's own dependencies do not use the executable's RUNPATH,
+  so `ldd` of the library alone could not find `libgui_forms_threading.so.0`.
+  Packaging now sets `$ORIGIN` on each packaged GUI.Forms library with
+  `patchelf`, as GUI.Forms' packager does; CI installs the provider's
+  `programs` package profile, which adds `patchelf`.
+- **macOS: publishing a read-only directory copy.** A probe on `macos-15`:
+  `renamex_np(RENAME_EXCL)` within one parent fails with `EACCES` for a
+  directory without owner write and succeeds for a writable one. The copy
+  applies the source's read-only mode to its staged directory before
+  publication, so publication failed. The reset `main` passed this test on
+  `macos-26`, built by Apple's toolchain with a macOS 26 minimum; File
+  Manager now declares macOS 14. `publish_stage_no_replace` gives such a
+  staged directory owner write for the rename only and restores its exact
+  mode through a descriptor held on it, which still names it after the
+  rename. It changes only stages File Manager created, and only on macOS;
+  user renames and moves are unchanged. A copy published with its mode not
+  restored reports `publication_mode_failed` and retains the object.
+- **macOS: the Details header check.** The sampled rectangle was correct
+  (flipped `GUIFormsView`, 1024×681), but only 9 pixels passed the
+  per-channel 0.2/0.25/0.3 cut after AppKit converted the CI display's
+  "Apple Virtual" colour space to sRGB (18 in the saved capture's
+  unconverted values). GUI.Forms 0.2's header text is a lighter navy than
+  before. The check now counts pixels below 0.35 on every channel. In the
+  unconverted capture that finds 32 in the header and none on an empty header
+  strip or empty list. The test also reports its last rectangle, count and
+  capture geometry if that stage times out.
+- **Sanitizers (Linux): `alloc-dealloc-mismatch`.** The transfer test's
+  allocation fixture replaced the throwing `operator new` and the scalar
+  `operator delete`, but not the nothrow forms. libstdc++'s `stable_sort` took
+  a nothrow buffer from AddressSanitizer's allocator and returned it through
+  the fixture's sized delete, which calls `free`. The fixture now replaces
+  every throwing and nothrow form, scalar and array, over one `malloc`/`free`
+  pair; nothrow allocation returns null for the armed rejection.
+- **The `macos-26` control** first failed before its tests: the runtime in
+  the provider cache matches only the provider's compiler and SDK. The
+  runtime step now rebuilds on a mismatch, as the manifest tool directs.
+
 ## Not established
 
 - macOS and Linux were not built locally; CI has not run the new workflow yet.

@@ -12,7 +12,6 @@
 #include <random>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace {
@@ -462,32 +461,6 @@ private:
     std::size_t count_{};
 };
 
-// Failure evidence only: whether this system lets the publication primitive
-// rename a fresh directory within one parent while the directory is read-only
-// and, as a control, while it is writable. The probes are removed afterwards.
-void describe_read_only_rename(const std::filesystem::path& parent) {
-    namespace fs = std::filesystem;
-    constexpr fs::perms readonly = fs::perms::owner_read | fs::perms::owner_exec;
-    constexpr fs::perms writable = fs::perms::owner_all;
-    const std::array<fs::perms, 2> modes{readonly, writable};
-    const std::array<std::string_view, 2> labels{"read-only", "writable"};
-    for (std::size_t index = 0; index < modes.size(); ++index) {
-        const std::string name = "rename-probe-" + std::to_string(index);
-        const fs::path probe = parent / name;
-        const fs::path renamed = parent / (name + "-renamed");
-        std::error_code ignored{};
-        fs::create_directory(probe, ignored);
-        fs::permissions(probe, modes[index], ignored);
-        const std::error_code moved = file_manager::rename_no_replace(probe, renamed);
-        std::cerr << "same-parent rename of a " << labels[index] << " directory: "
-                  << (moved ? moved.message() : std::string("succeeded")) << '\n';
-        fs::permissions(probe, writable, ignored);
-        fs::permissions(renamed, writable, ignored);
-        fs::remove(probe, ignored);
-        fs::remove(renamed, ignored);
-    }
-}
-
 bool test_directory_copy_metadata(const TestArea& area) {
     namespace fs = std::filesystem;
     const fs::path source = area.source() / "readonly-tree";
@@ -518,7 +491,6 @@ bool test_directory_copy_metadata(const TestArea& area) {
     restore.remember(copied_nested);
     if (!require(copied.succeeded(), "read-only directory copy must fill children before restoring permissions")) {
         std::cerr << copied.code << ": " << copied.message << '\n';
-        describe_read_only_rename(destination);
         return false;
     }
     if (!require(fs::is_regular_file(copied_nested / "value.txt") &&
