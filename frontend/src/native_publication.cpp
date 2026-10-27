@@ -15,13 +15,37 @@
 #endif
 #include <windows.h>
 #elif defined(__APPLE__)
+#include <fcntl.h>
 #include <stdio.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #elif defined(__linux__)
 #include <fcntl.h>
 #include <stdio.h>
 #endif
 
 namespace file_manager {
+
+#if defined(__APPLE__)
+namespace {
+// Owns one descriptor for the length of a publication; closes it on every exit.
+class OwnedDescriptor final {
+public:
+    explicit OwnedDescriptor(const int descriptor) noexcept : value(descriptor) {}
+    OwnedDescriptor(const OwnedDescriptor&) = delete;
+    OwnedDescriptor& operator=(const OwnedDescriptor&) = delete;
+    ~OwnedDescriptor() {
+        if (value >= 0) ::close(value);
+    }
+    const int value;
+};
+
+std::error_code errno_error(const int native_error) noexcept {
+    const std::error_code failure(native_error, std::generic_category());
+    return failure;
+}
+} // namespace
+#endif
 
 std::error_code check_destination_vacant(const std::filesystem::path& destination) {
 #if defined(_WIN32)
@@ -82,6 +106,61 @@ std::error_code rename_no_replace(const std::filesystem::path& source,
     static_cast<void>(destination);
     const std::error_code unsupported = std::make_error_code(std::errc::operation_not_supported);
     return unsupported;
+#endif
+}
+
+StagePublication publish_stage_no_replace(const std::filesystem::path& stage,
+                                          const std::filesystem::path& destination) {
+    StagePublication publication{};
+#if defined(__APPLE__)
+    struct stat observed{};
+    if (::lstat(stage.c_str(), &observed) != 0) {
+        publication.error = errno_error(errno);
+        return publication;
+    }
+    const bool restricted_directory = S_ISDIR(observed.st_mode) && (observed.st_mode & S_IWUSR) == 0;
+    if (!restricted_directory) {
+        publication.error = rename_no_replace(stage, destination);
+        publication.published = !publication.error;
+        return publication;
+    }
+    // Hold the staged directory itself: the mode changes below act on this
+    // object, never on whatever a path names later.
+    const OwnedDescriptor directory(::open(stage.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
+    if (directory.value < 0) {
+        publication.error = errno_error(errno);
+        return publication;
+    }
+    struct stat opened{};
+    if (::fstat(directory.value, &opened) != 0) {
+        publication.error = errno_error(errno);
+        return publication;
+    }
+    if (opened.st_dev != observed.st_dev || opened.st_ino != observed.st_ino) {
+        publication.error = std::make_error_code(std::errc::device_or_resource_busy);
+        return publication;
+    }
+    const mode_t final_mode = opened.st_mode & 07777;
+    if (::fchmod(directory.value, final_mode | S_IWUSR) != 0) {
+        publication.error = errno_error(errno);
+        return publication;
+    }
+    const std::error_code renamed = rename_no_replace(stage, destination);
+    // Restore the exact mode whether or not the rename happened: on failure
+    // the stage keeps the mode its metadata pass gave it.
+    const int restored = ::fchmod(directory.value, final_mode);
+    const int restore_error = restored == 0 ? 0 : errno;
+    publication.published = !renamed;
+    if (renamed) {
+        publication.error = renamed;
+        return publication;
+    }
+    if (restore_error != 0) publication.error = errno_error(restore_error);
+    return publication;
+#else
+    publication.error = rename_no_replace(stage, destination);
+    publication.published = !publication.error;
+    return publication;
 #endif
 }
 

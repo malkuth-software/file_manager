@@ -8,6 +8,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(FILE_MANAGER_BUILD_TESTS "Build File Manager frontend tests" ON)
+# A sanitized tree loads the sanitizer runtime DLL on Windows and is never
+# packaged; tools/build_native.py --sanitize turns the import check off.
+option(FILE_MANAGER_CHECK_RUNTIME_IMPORTS
+       "Fail a Windows build whose executable imports a non-system, non-GUI.Forms DLL" ON)
 if(APPLE)
     set(FILE_MANAGER_DEFAULT_MANIFEST
         "${CMAKE_CURRENT_SOURCE_DIR}/../gui_forms/manifests/gui-forms-fm0-macos-arm64-2026-08-10.json")
@@ -29,9 +33,29 @@ endif()
 file(READ "${FILE_MANAGER_GUI_FORMS_MANIFEST}" FILE_MANAGER_MANIFEST_JSON)
 string(JSON FILE_MANAGER_MANIFEST_ID GET "${FILE_MANAGER_MANIFEST_JSON}" identity id)
 
-find_package(GUIForms 0.1 REQUIRED CONFIG)
+find_package(GUIForms 0.2 REQUIRED CONFIG)
 if(NOT TARGET GUIForms::Application)
     message(FATAL_ERROR "Named GUI.Forms package has no GUIForms::Application target")
+endif()
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
+   NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 22.1 OR
+   CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 22.2)
+    # The SDK's C++ objects are not ABI compatible across compilers; configure
+    # with the provider's cmake/llvm22.cmake (tools/build_native.py does).
+    message(FATAL_ERROR "File Manager builds with the GUI.Forms LLVM 22.1.x toolchain, not "
+                        "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+endif()
+if(WIN32 AND NOT MSVC)
+    # As GUI.Forms' own programs: every executable embeds the LLVM runtimes,
+    # winpthreads and the MinGW-w64 CRT, so a package imports system DLLs and
+    # GUI.Forms' DLLs only (StageWindowsRuntime.cmake rejects anything else).
+    add_link_options(-static)
+endif()
+# The SDK's shared libraries a packaged program loads: Application, and
+# Threading, which Application links (GUI.Forms 0.2 made it shared).
+set(FILE_MANAGER_GUI_FORMS_RUNTIME_TARGETS GUIForms::Application)
+if(TARGET GUIForms::Threading)
+    list(APPEND FILE_MANAGER_GUI_FORMS_RUNTIME_TARGETS GUIForms::Threading)
 endif()
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 
@@ -195,12 +219,18 @@ set_target_properties(file_manager PROPERTIES
 add_custom_command(TARGET file_manager POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_BUNDLE_DIR:file_manager>/Contents/Frameworks"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:GUIForms::Application>"
-            "$<TARGET_BUNDLE_DIR:file_manager>/Contents/Frameworks/$<TARGET_FILE_NAME:GUIForms::Application>"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:GUIForms::Application>"
-            "$<TARGET_BUNDLE_DIR:file_manager>/Contents/Frameworks/$<TARGET_SONAME_FILE_NAME:GUIForms::Application>"
+    VERBATIM)
+foreach(FILE_MANAGER_RUNTIME_TARGET IN LISTS FILE_MANAGER_GUI_FORMS_RUNTIME_TARGETS)
+    add_custom_command(TARGET file_manager POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:${FILE_MANAGER_RUNTIME_TARGET}>"
+                "$<TARGET_BUNDLE_DIR:file_manager>/Contents/Frameworks/$<TARGET_FILE_NAME:${FILE_MANAGER_RUNTIME_TARGET}>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:${FILE_MANAGER_RUNTIME_TARGET}>"
+                "$<TARGET_BUNDLE_DIR:file_manager>/Contents/Frameworks/$<TARGET_SONAME_FILE_NAME:${FILE_MANAGER_RUNTIME_TARGET}>"
+        VERBATIM)
+endforeach()
+add_custom_command(TARGET file_manager POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${GUIForms_FONT_DIR}"
             "$<TARGET_BUNDLE_DIR:file_manager>/Contents/Resources/fonts"
@@ -210,37 +240,46 @@ add_custom_command(TARGET file_manager POST_BUILD
 
 elseif(WIN32)
     set_target_properties(file_manager PROPERTIES OUTPUT_NAME "File Manager" WIN32_EXECUTABLE TRUE)
+    # The SDK keeps its DLLs (Application, Threading) in bin; stage the actual
+    # transitive runtime targets beside the executable, as GUI.Forms' reference
+    # consumer does. The tests share this directory and load the same copies.
     add_custom_command(TARGET file_manager POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:GUIForms::Application>" "$<TARGET_FILE_DIR:file_manager>"
+            $<TARGET_RUNTIME_DLLS:file_manager> "$<TARGET_FILE_DIR:file_manager>"
+        COMMAND_EXPAND_LISTS)
+    add_custom_command(TARGET file_manager POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${GUIForms_FONT_DIR}" "$<TARGET_FILE_DIR:file_manager>/fonts"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${GUIForms_DIR}/../../../share/licenses" "$<TARGET_FILE_DIR:file_manager>/licenses"
         VERBATIM)
-    get_filename_component(FILE_MANAGER_TOOLCHAIN_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
-    add_custom_command(TARGET file_manager POST_BUILD
-        COMMAND ${CMAKE_COMMAND}
-            "-DEXECUTABLE=$<TARGET_FILE:file_manager>"
-            "-DTOOLCHAIN_BIN=${FILE_MANAGER_TOOLCHAIN_BIN}"
-            "-DCMAKE_OBJDUMP=${CMAKE_OBJDUMP}"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/StageWindowsRuntime.cmake"
-        VERBATIM)
-    install(FILES "$<TARGET_FILE:GUIForms::Application>" DESTINATION .)
+    if(FILE_MANAGER_CHECK_RUNTIME_IMPORTS)
+        add_custom_command(TARGET file_manager POST_BUILD
+            COMMAND ${CMAKE_COMMAND}
+                "-DEXECUTABLE=$<TARGET_FILE:file_manager>"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/StageWindowsRuntime.cmake"
+            VERBATIM)
+    endif()
+    install(FILES $<TARGET_RUNTIME_DLLS:file_manager> DESTINATION .)
     install(DIRECTORY "${GUIForms_FONT_DIR}/" DESTINATION fonts)
 else()
     set_target_properties(file_manager PROPERTIES
         OUTPUT_NAME "File Manager"
         BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN"
         BUILD_WITH_INSTALL_RPATH TRUE)
+    foreach(FILE_MANAGER_RUNTIME_TARGET IN LISTS FILE_MANAGER_GUI_FORMS_RUNTIME_TARGETS)
+        add_custom_command(TARGET file_manager POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:${FILE_MANAGER_RUNTIME_TARGET}>"
+                "$<TARGET_FILE_DIR:file_manager>/$<TARGET_SONAME_FILE_NAME:${FILE_MANAGER_RUNTIME_TARGET}>"
+            VERBATIM)
+        install(FILES "$<TARGET_FILE:${FILE_MANAGER_RUNTIME_TARGET}>"
+            DESTINATION . RENAME "$<TARGET_SONAME_FILE_NAME:${FILE_MANAGER_RUNTIME_TARGET}>")
+    endforeach()
     add_custom_command(TARGET file_manager POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:GUIForms::Application>" "$<TARGET_FILE_DIR:file_manager>/$<TARGET_SONAME_FILE_NAME:GUIForms::Application>"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${GUIForms_FONT_DIR}" "$<TARGET_FILE_DIR:file_manager>/fonts"
         VERBATIM)
-    install(FILES "$<TARGET_FILE:GUIForms::Application>"
-        DESTINATION . RENAME "$<TARGET_SONAME_FILE_NAME:GUIForms::Application>")
     install(DIRECTORY "${GUIForms_FONT_DIR}/" DESTINATION fonts)
 endif()
 install(TARGETS file_manager BUNDLE DESTINATION . RUNTIME DESTINATION .)

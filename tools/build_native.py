@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Build a development distribution using native tools; never install services."""
+"""Build a development distribution using native tools; never install services.
+
+The toolkit is built by GUI.Forms' own tools/ci_build.py in the consumer layout
+it defines (gui_forms/ beside .build/native-<platform>/gui-forms/), so every
+compilation has the provider CI's configure options, toolchain file and paths,
+and a restored provider cache can hit. The frontend is configured with the
+same cmake/llvm22.cmake toolchain file against the installed SDK.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,10 +17,16 @@ from pathlib import Path
 import platform
 import shutil
 import sys
+from types import ModuleType
 from native_build_support import ROOT, BuildValidation, git_output, record_source_state
-from native_build_support import run, sdk_fingerprint
+from native_build_support import output, run, sdk_fingerprint, sha256
 from backend_bundle import install_bundle
-from fetch_build_inputs import verify_source_pins
+from fetch_build_inputs import MACOS_RUNTIME_LAYOUT, verify_source_pins
+
+PROVIDER_TOOLS: Path = ROOT / 'gui_forms/tools'
+TOOLCHAIN_FILE: Path = ROOT / 'gui_forms/cmake/llvm22.cmake'
+# Provider sanitizer leak baseline (macOS framework allocations; see its building docs).
+LEAK_SUPPRESSIONS: Path = PROVIDER_TOOLS / 'sanitizer/lsan.supp'
 
 
 @dataclass(frozen=True)
@@ -23,71 +36,125 @@ class HostConfiguration:
 
 
 def host_configuration() -> HostConfiguration:
+    """The platform name exactly as the provider's ci_build.py derives it, so both use one build directory.
+
+    Anything but arm64/aarch64 is x64: on Windows platform.machine() reads
+    PROCESSOR_ARCHITECTURE and is empty in a shell that does not carry it.
+    """
     systems: dict[str, str] = {'Windows': 'windows', 'Darwin': 'macos', 'Linux': 'linux'}
-    architectures: dict[str, str] = {'AMD64': 'x64', 'x86_64': 'x64', 'arm64': 'arm64', 'aarch64': 'arm64'}
     system: str = platform.system()
-    machine: str = platform.machine()
+    machine: str = platform.machine().lower()
     host: str = systems[system]
-    architecture: str = architectures[machine]
+    architecture: str = 'x64'
+    if machine in ('arm64', 'aarch64'):
+        architecture = 'arm64'
     result: HostConfiguration = HostConfiguration(host=host, architecture=architecture)
     return result
 
 
-def build_toolkit(host: str, build: Path, sdk: Path, jobs: int) -> None:
-    """Build, test, then install only into the explicitly supplied build SDK."""
-    toolkit: Path = build / 'gui-forms'
-    options: list[str] = []
-    hosts: dict[str, str] = {'WINDOWS': 'windows', 'MACOS': 'macos', 'LINUX': 'linux'}
-    name: str
-    for name in hosts:
-        enabled: str = 'OFF'
-        if hosts[name] == host:
-            enabled = 'ON'
-        options.append(f'-DGUI_FORMS_ENABLE_{name}_HOST={enabled}')
-    if host == 'windows':
-        options.extend(['-DGUI_FORMS_ENABLE_SKIA=OFF', '-DGUI_FORMS_ENABLE_HARFBUZZ_TEXT=OFF'])
-    else:
-        if host == 'linux':
-            os.environ['GUI_FORMS_SYSTEM_BUILD_TOOLS'] = '1'
-        run('sh', ROOT / 'gui_forms/third_party/fetch_skia_cpu.sh')
-        run('sh', ROOT / 'gui_forms/third_party/fetch_text_stack.sh')
-        skia_out: Path = build / 'skia'
-        if host == 'linux':
-            run('sh', ROOT / 'gui_forms/third_party/build_skia_cpu_linux.sh', skia_out)
-        else:
-            skia_out.mkdir(exist_ok=True)
-            shutil.copy2(ROOT / 'gui_forms/third_party/skia_cpu_args.gn', skia_out / 'args.gn')
-            if os.environ.get('CMAKE_CXX_COMPILER_LAUNCHER') == 'ccache':
-                arguments: Path = skia_out / 'args.gn'
-                arguments.write_text(arguments.read_text(encoding='utf-8') + '\ncc_wrapper = "ccache"\n', encoding='utf-8')
-            skia_root: Path = ROOT / 'gui_forms/third_party/skia'
-            run(skia_root / 'bin/gn', 'gen', skia_out, '--root=' + str(skia_root))
-            run(skia_root / 'third_party/ninja/ninja', '-C', skia_out, '-j', jobs, 'skia')
-        options.extend(['-DGUI_FORMS_ENABLE_SKIA=ON', '-DGUI_FORMS_ENABLE_HARFBUZZ_TEXT=ON',
-                        '-DGUI_FORMS_SKIA_PREBUILT=ON', f'-DGUI_FORMS_SKIA_OUT={skia_out}'])
-    run('cmake', '-S', ROOT / 'gui_forms', '-B', toolkit, '-G', 'Ninja',
-        '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_INSTALL_LIBDIR=lib',
-        '-DCMAKE_POSITION_INDEPENDENT_CODE=ON', '-DGUI_FORMS_BUILD_GALLERY=OFF',
-        '-DGUI_FORMS_BUILD_TESTS=ON', f'-DCMAKE_INSTALL_PREFIX={sdk}', *options)
-    run('cmake', '--build', toolkit, '--parallel', jobs)
-    os.environ['GUI_FORMS_FONT_DIR'] = str(ROOT / 'gui_forms/assets/fonts')
-    run('ctest', '--test-dir', toolkit, '--output-on-failure', '--timeout', '120')
-    run('cmake', '--install', toolkit)
+def provider_build_module() -> ModuleType:
+    """Import the pinned provider's ci_build.py; its configure and sanitizer rules stay single-sourced."""
+    location: str = str(PROVIDER_TOOLS)
+    if location not in sys.path:
+        sys.path.insert(0, location)
+    import ci_build
+    module: ModuleType = ci_build
+    return module
 
+
+def select_macos_runtime(host: str) -> None:
+    """Point cmake/llvm22.cmake at the LLVM 22.1.8 macOS 14 runtime and verify it byte for byte.
+
+    The provider cache archive carries the runtime at MACOS_RUNTIME_LAYOUT
+    (tools/fetch_build_inputs.py restores it). An explicit GUI_FORMS_LLVM_RUNTIME wins.
+    """
+    if host != 'macos':
+        return
+    if not os.environ.get('GUI_FORMS_LLVM_RUNTIME'):
+        os.environ['GUI_FORMS_LLVM_RUNTIME'] = str(ROOT / MACOS_RUNTIME_LAYOUT)
+    runtime: str = os.environ['GUI_FORMS_LLVM_RUNTIME']
+    run(sys.executable, PROVIDER_TOOLS / 'macos_runtime_manifest.py', runtime)
+
+
+def build_toolkit(jobs: int, test_jobs: int) -> None:
+    """Build, test and install into .build/native-<platform>/gui-forms-sdk exactly as provider CI does."""
+    run(sys.executable, PROVIDER_TOOLS / 'ci_build.py', '--jobs', jobs, '--test-jobs', test_jobs)
+
+
+def toolchain_identity() -> dict[str, str]:
+    """The compiler that built this consumer; a cache hit needs this exact binary."""
+    version_text: str = output('clang', '--version')
+    first_line: str = version_text.splitlines()[0]
+    located: str | None = shutil.which('clang')
+    if located is None:
+        raise RuntimeError('clang is missing from PATH')
+    compiler_path: Path = Path(located)
+    identity: dict[str, str] = {'clang_version': first_line, 'clang_sha256': sha256(compiler_path),
+                                'toolchain_file': 'gui_forms/cmake/llvm22.cmake'}
+    return identity
+
+
+def configure_frontend(frontend: Path, sdk: Path, build: Path, manifest: Path,
+                       extra_options: list[str]) -> None:
+    """Configure through the provider's configure record, which skips an unchanged reconfigure."""
+    ci_build: ModuleType = provider_build_module()
+    configure: list[str] = [
+        'cmake', '-S', str(ROOT / 'frontend'), '-B', str(frontend), '-G', 'Ninja',
+        '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_TOOLCHAIN_FILE=' + str(TOOLCHAIN_FILE),
+        '-DCMAKE_NO_SYSTEM_FROM_IMPORTED=ON', '-DCMAKE_PREFIX_PATH=' + str(sdk),
+        '-DGUIForms_DIR=' + str(sdk / 'lib/cmake/GUIForms'),
+        '-DFILE_MANAGER_GUI_FORMS_MANIFEST=' + str(manifest),
+        '-DCMAKE_INSTALL_PREFIX=' + str(build / 'frontend-sdk')]
+    configure.extend(extra_options)
+    ci_build.configure_tree(frontend, configure)
+
+
+def build_sanitized_frontend(host: str, build: Path, sdk: Path, manifest: Path, jobs: int, test_jobs: int) -> None:
+    """Build and test the frontend under the provider's sanitizer profile; install and package nothing.
+
+    Only File Manager code is instrumented: the Release SDK is linked
+    unchanged, as provider CI links its prebuilt Skia. Every report stops
+    its test. The Windows MinGW runtime has no LeakSanitizer.
+    """
+    ci_build: ModuleType = provider_build_module()
+    options: list[str]
+    environment: dict[str, str]
+    options, environment = ci_build.sanitizer_options(host, LEAK_SUPPRESSIONS, 'lines')
+    os.environ.update(environment)
+    # The MinGW sanitizer runtime is a DLL; this tree is tested, never packaged.
+    options.append('-DFILE_MANAGER_CHECK_RUNTIME_IMPORTS=OFF')
+    if host == 'windows':
+        # Sanitized, the deprecated Web.Forms generator's make_native_form()
+        # and button-recipe frames need about 1.1 MB, over Windows' 1 MB main
+        # thread (gui_forms tools/stack_frames.py). Reserve the 8 MB Linux and
+        # macOS give main, in this tree only, until the generator is replaced;
+        # packaged programs keep the default (planning/GUI_FORMS_0_2_CONSUMPTION_2026-10-26.md).
+        options.append('-DCMAKE_EXE_LINKER_FLAGS=' + ci_build.SANITIZER_LINK_FLAGS + ' -Wl,--stack,8388608')
+    frontend: Path = build / 'frontend-sanitize'
+    configure_frontend(frontend, sdk, build, manifest, options)
+    run('cmake', '--build', frontend, '--parallel', jobs)
+    os.environ['GUI_FORMS_FONT_DIR'] = str(ROOT / 'gui_forms/assets/fonts')
+    run('ctest', '--test-dir', frontend, '--output-on-failure', '--timeout', '900', '--parallel', test_jobs)
 
 
 def main() -> None:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--jobs', type=int, default=2)
+    parser.add_argument('--test-jobs', type=int, default=1, help='tests ctest runs at once (default 1)')
     parser.add_argument('--gui-forms-sdk', type=Path, help='Reuse an already tested native SDK')
     parser.add_argument('--backend-bundle', type=Path, help='Pinned backend archive; defaults to .build/inputs/<platform>')
     parser.add_argument('--skip-components', action='store_true', help='Explicit frontend-only development package')
+    parser.add_argument('--sanitize', action='store_true',
+                        help='build and test the frontend in frontend-sanitize under ASan/UBSan (LSan on '
+                             'Linux and macOS) against an already built SDK; no install or package')
     arguments: argparse.Namespace = parser.parse_args()
     jobs: int = arguments.jobs
+    test_jobs: int = arguments.test_jobs
     supplied_sdk: Path | None = arguments.gui_forms_sdk
     skip_components: bool = arguments.skip_components
-    if jobs < 1:
-        parser.error('--jobs must be positive')
+    sanitize: bool = arguments.sanitize
+    if jobs < 1 or test_jobs < 1:
+        parser.error('--jobs and --test-jobs must be positive')
     configuration: HostConfiguration = host_configuration()
     host: str = configuration.host
     architecture: str = configuration.architecture
@@ -99,7 +166,7 @@ def main() -> None:
         lock = json.loads((ROOT / 'dependencies.lock.json').read_text(encoding='utf-8'))
         verify_source_pins(lock, ROOT)
     sdk: Path = build / 'gui-forms-sdk'
-    sdk_validation: str = 'native build and CTest passed'
+    sdk_validation: str = 'provider ci_build.py: native build, CTest and installed reference examples passed'
     toolkit_validation: str = 'passed'
     if supplied_sdk is not None:
         sdk = supplied_sdk.resolve()
@@ -108,6 +175,14 @@ def main() -> None:
     os.environ['BUILD_JOBS'] = str(jobs)
     os.environ.setdefault('CC', 'clang')
     os.environ.setdefault('CXX', 'clang++')
+    os.environ.setdefault('OBJCXX', 'clang++')
+    select_macos_runtime(host)
+    manifest: Path = build / 'gui-forms-consumption.json'
+    if sanitize:
+        if not (sdk / 'lib/cmake/GUIForms').is_dir() or not manifest.is_file():
+            parser.error('--sanitize needs an SDK and consumption manifest from an earlier build')
+        build_sanitized_frontend(host, build, sdk, manifest, jobs, test_jobs)
+        return
     if not skip_components:
         target: str = host + '-' + architecture
         backend: dict[str, object] = lock['backend']
@@ -120,24 +195,20 @@ def main() -> None:
         install_bundle(bundle, build / 'components', target,
                        str(backend['revision']), str(hashes[target]))
     if supplied_sdk is None:
-        build_toolkit(host, build, sdk, jobs)
-    manifest: Path = build / 'gui-forms-consumption.json'
+        build_toolkit(jobs, test_jobs)
     revision: str = git_output('rev-parse', 'HEAD')
     toolkit_revision: str = git_output('-C', str(ROOT / 'gui_forms'), 'rev-parse', 'HEAD')
     manifest_record: dict[str, object] = {
         'identity': {'id': f'gui-forms-development-{host}-{architecture}-{toolkit_revision[:12]}',
                      'state': 'development', 'source_revision': toolkit_revision},
         'validation': {'sdk': sdk_validation},
+        'toolchain': toolchain_identity(),
         'limits': ['No platform promotion or installed service claim; see package receipt']}
     manifest_text: str = json.dumps(manifest_record, indent=2) + '\n'
     manifest.write_text(manifest_text, encoding='utf-8')
     frontend: Path = build / 'frontend'
     sdk_identity: str = sdk_fingerprint(sdk)
-    run('cmake', '-S', ROOT / 'frontend', '-B', frontend, '-G', 'Ninja',
-        '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_NO_SYSTEM_FROM_IMPORTED=ON',
-        f'-DGUIForms_DIR={sdk}/lib/cmake/GUIForms',
-        f'-DFILE_MANAGER_GUI_FORMS_MANIFEST={manifest}',
-        f'-DCMAKE_INSTALL_PREFIX={build}/frontend-sdk')
+    configure_frontend(frontend, sdk, build, manifest, [])
     sdk_stamp: Path = frontend / 'sdk-fingerprint.txt'
     previous_identity: str = ''
     if sdk_stamp.is_file():
@@ -147,7 +218,8 @@ def main() -> None:
         # Installed header mtimes alone cannot protect a changed public C++ layout.
         run('cmake', '--build', frontend, '--target', 'clean')
     run('cmake', '--build', frontend, '--parallel', jobs)
-    run('ctest', '--test-dir', frontend, '--output-on-failure', '--timeout', '120')
+    os.environ['GUI_FORMS_FONT_DIR'] = str(ROOT / 'gui_forms/assets/fonts')
+    run('ctest', '--test-dir', frontend, '--output-on-failure', '--timeout', '120', '--parallel', test_jobs)
     tested_identity: str = sdk_fingerprint(sdk)
     if tested_identity != sdk_identity:
         raise RuntimeError('GUI.Forms SDK changed during frontend build/tests; rebuild against a stable SDK')

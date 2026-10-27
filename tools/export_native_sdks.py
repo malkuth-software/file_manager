@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
 
-from build_native import HostConfiguration, host_configuration
+from build_native import TOOLCHAIN_FILE, HostConfiguration, host_configuration
 from native_build_support import ROOT, git_output, run, sdk_fingerprint, sha256
 
 
@@ -39,21 +40,26 @@ def cache_options(build: Path) -> dict[str, str]:
     return options
 
 
-def verify_consumers(bundle: Path, scratch: Path) -> None:
+def verify_consumers(bundle: Path, scratch: Path, toolchain: Path) -> None:
+    """Configure and link copied, independent consumers against the relocated bundle.
+
+    They use the bundle's own toolchain file (and, on macOS, its runtime
+    prefix), as a downstream consumer of the archive must.
+    """
     # Use copied, independent projects: no add_subdirectory into provider source.
     picker_source: Path = scratch / 'picker-consumer'
     shutil.copytree(ROOT / 'frontend/examples/document_picker_consumer', picker_source)
     prefix: str = str(bundle / 'gui-forms-sdk') + ';' + str(bundle / 'picker-sdk')
     run('cmake', '-S', picker_source, '-B', scratch / 'picker-build', '-G', 'Ninja',
         '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_NO_SYSTEM_FROM_IMPORTED=ON',
-        '-DCMAKE_PREFIX_PATH=' + prefix)
+        '-DCMAKE_TOOLCHAIN_FILE=' + str(toolchain), '-DCMAKE_PREFIX_PATH=' + prefix)
     run('cmake', '--build', scratch / 'picker-build', '--parallel', 2)
     # Native Application verification links the host library but does not launch UI.
     application_source: Path = scratch / 'application-consumer'
     shutil.copytree(ROOT / 'gui_forms/examples/paint_contract', application_source)
     run('cmake', '-S', application_source, '-B', scratch / 'application-build', '-G', 'Ninja',
         '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_NO_SYSTEM_FROM_IMPORTED=ON',
-        '-DGUI_FORMS_EXAMPLE_NATIVE=ON',
+        '-DGUI_FORMS_EXAMPLE_NATIVE=ON', '-DCMAKE_TOOLCHAIN_FILE=' + str(toolchain),
         '-DCMAKE_PREFIX_PATH=' + prefix)
     run('cmake', '--build', scratch / 'application-build', '--parallel', 2)
 
@@ -78,7 +84,22 @@ def export(build: Path, platform: str, revision: str) -> Path:
         licenses: Path = picker / 'share/licenses/FileManagerDocumentPicker'
         licenses.mkdir(parents=True)
         shutil.copy2(ROOT / 'LICENSE', licenses / 'LICENSE')
-        verify_consumers(bundle, scratch)
+        # Consumers must compile with the SDK's compiler and toolchain file.
+        toolchain: Path = bundle / 'cmake/llvm22.cmake'
+        toolchain.parent.mkdir()
+        shutil.copy2(TOOLCHAIN_FILE, toolchain)
+        previous_runtime: str | None = os.environ.get('GUI_FORMS_LLVM_RUNTIME')
+        if platform == 'macos-arm64':
+            # The SDK's dylibs load @rpath/libc++.1.dylib; ship the matched
+            # LLVM 22.1.8 macOS 14 runtime the toolchain file links.
+            runtime: Path = bundle / 'llvm-runtime'
+            shutil.copytree(os.environ['GUI_FORMS_LLVM_RUNTIME'], runtime, symlinks=True)
+            os.environ['GUI_FORMS_LLVM_RUNTIME'] = str(runtime)
+        try:
+            verify_consumers(bundle, scratch, toolchain)
+        finally:
+            if previous_runtime is not None:
+                os.environ['GUI_FORMS_LLVM_RUNTIME'] = previous_runtime
         manifest: dict[str, object] = {
             'schema': 1, 'provider_revision': revision, 'platform': platform,
             'gui_forms_source_revision': git_output('-C', str(ROOT / 'gui_forms'), 'rev-parse', 'HEAD'),
@@ -86,6 +107,8 @@ def export(build: Path, platform: str, revision: str) -> Path:
             'build_options': cache_options(build),
             'gui_forms_sha256': sdk_fingerprint(gui),
             'picker_sha256': sdk_fingerprint(picker),
+            'toolchain': 'LLVM 22.1.8; configure consumers with cmake/llvm22.cmake from this archive' +
+                         ('; set GUI_FORMS_LLVM_RUNTIME to llvm-runtime/' if platform == 'macos-arm64' else ''),
             'validation': 'relocated independent Application and picker configure/link passed',
             'prepared_text_availability': 'not asserted by this packaging receipt'}
         (bundle / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')

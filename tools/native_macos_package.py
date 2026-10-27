@@ -50,12 +50,16 @@ def expand_path(value: str, owner: Path, executable: Path) -> Path:
 
 
 def dependency_source(dependency: str, original: Path, executable: Path,
-                      sdk: Path, frameworks: Path) -> Path:
+                      executable_paths: list[str], sdk: Path, frameworks: Path) -> Path:
+    """Find the file a load command names. `executable_paths` are the
+executable's LC_RPATH entries as built: the closure rewrites the executable
+first and deletes its build-tree entries, but a library it pulls in (libc++
+naming @rpath/libc++abi) is still resolved against them."""
     name: str = Path(dependency).name
     candidates: list[Path] = []
     if dependency.startswith('@rpath/'):
         bases: list[str] = runtime_paths(original)
-        bases.extend(runtime_paths(executable))
+        bases.extend(executable_paths)
         base: str
         for base in bases:
             expanded: Path = expand_path(base, original, executable)
@@ -88,6 +92,7 @@ An error preserves the failed staging attempt for inspection, not publication.
     executable: Path = app / 'Contents/MacOS/File Manager'
     frameworks: Path = app / 'Contents/Frameworks'
     frameworks.mkdir(exist_ok=True)
+    executable_paths: list[str] = runtime_paths(executable)
     queue: deque[LibraryCopy] = deque()
     queue.append(LibraryCopy(original=executable, target=executable))
     seen: set[Path] = set()
@@ -105,7 +110,8 @@ An error preserves the failed staging attempt for inspection, not publication.
             if dependency in ids or dependency.startswith(('/System/', '/usr/lib/')):
                 continue
             name: str = Path(dependency).name
-            source: Path = dependency_source(dependency, original, executable, sdk, frameworks)
+            source: Path = dependency_source(dependency, original, executable, executable_paths,
+                                             sdk, frameworks)
             source_hash: str = sha256(source)
             if name in names and source_hash != names[name]:
                 raise RuntimeError(f'Conflicting dependency basename: {name}')

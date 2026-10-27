@@ -123,6 +123,10 @@ struct PreviewState final {
     std::string failure{};
     std::filesystem::path fixture_root{};
     file_manager::ObjectIdentity renamed_identity{};
+    // The Details header's last sampled rectangle (window points) and its
+    // matching pixel count, reported if the Details stage times out.
+    gui_forms::Rect last_header_rect{};
+    std::size_t last_header_pixels{};
     bool closed{};
 
     ~PreviewState() { if (application) (*application).stop(); }
@@ -233,7 +237,13 @@ std::size_t matching_pixels(NSView* const view, const gui_forms::Rect bounds,
                 matched = color.redComponent < 0.15 && color.greenComponent > 0.75 &&
                     color.blueComponent > 0.65 && color.blueComponent < 0.9;
             } else if (target == PixelMatch::dark_text) {
-                matched = color.redComponent < 0.2 && color.greenComponent < 0.25 && color.blueComponent < 0.3;
+                // Glyph ink on a light header: every channel below 0.35. The
+                // earlier per-channel 0.2/0.25/0.3 cut found 9 pixels of
+                // GUI.Forms 0.2's navy header text once AppKit converted the CI
+                // display's colour space to sRGB (run 40466042854; 18 in the
+                // saved capture's unconverted values). In those unconverted
+                // values this cut finds 32 and none on empty header or list.
+                matched = color.redComponent < 0.35 && color.greenComponent < 0.35 && color.blueComponent < 0.35;
             } else if (target == PixelMatch::caption_text) {
                 matched = color.redComponent < 0.6 && color.greenComponent < 0.65 && color.blueComponent < 0.7;
             } else {
@@ -494,6 +504,8 @@ void exercise(PreviewState& state) {
         const gui_forms::Rect name_header{bounds.x + 10.0, bounds.y + 3.0,
             50.0 * scale, (*objects).details_row_height() * scale - 2.0};
         const std::size_t pixels = matching_pixels(native.contentView, name_header, PixelMatch::dark_text);
+        state.last_header_rect = name_header;
+        state.last_header_pixels = pixels;
         if (pixels < 15U) return;
         const std::string selected((*objects).selected_id());
         (*state.model).request_focus(objects);
@@ -608,6 +620,30 @@ void exercise(PreviewState& state) {
     }
 }
 
+// Reports what the Details stage last sampled and how AppKit's capture of
+// the content view relates to the model's coordinates, so a timeout names
+// its cause instead of only its stage.
+void describe_details_timeout(const PreviewState& state) {
+    NSWindow* const native = preview_window();
+    NSView* const view = native.contentView;
+    std::cerr << "Details timeout: header_rect=" << state.last_header_rect.x << ','
+              << state.last_header_rect.y << ',' << state.last_header_rect.width << ','
+              << state.last_header_rect.height << " dark_pixels=" << state.last_header_pixels;
+    if (view != nil) {
+        NSBitmapImageRep* const bitmap = [view bitmapImageRepForCachingDisplayInRect:view.bounds];
+        std::cerr << " view=" << view.bounds.size.width << 'x' << view.bounds.size.height
+                  << " flipped=" << (view.isFlipped == YES) << " class="
+                  << NSStringFromClass([view class]).UTF8String;
+        if (bitmap != nil) {
+            NSString* const space_name = bitmap.colorSpace.localizedName;
+            const char* const space_text = space_name == nil ? "unnamed" : space_name.UTF8String;
+            std::cerr << " bitmap=" << bitmap.pixelsWide << 'x' << bitmap.pixelsHigh
+                      << " colour_space=" << space_text;
+        }
+    }
+    std::cerr << '\n';
+}
+
 void run_step(void* const context) {
     const std::unique_ptr<std::shared_ptr<PreviewState>> retained(
         static_cast<std::shared_ptr<PreviewState>*>(context));
@@ -619,8 +655,11 @@ void run_step(void* const context) {
             exercise(state);
             if (state.stage == PreviewStage::finished || state.closed) return;
             if (std::chrono::steady_clock::now() >= state.deadline) {
-                throw std::runtime_error("native preview timed out at stage " +
-                                         std::to_string(static_cast<int>(state.stage)));
+                const std::string stage_text = std::to_string(static_cast<int>(state.stage));
+                if (state.stage == PreviewStage::details) {
+                    describe_details_timeout(state);
+                }
+                throw std::runtime_error("native preview timed out at stage " + stage_text);
             }
             queue_step(owner);
         } catch (const std::exception& error) {

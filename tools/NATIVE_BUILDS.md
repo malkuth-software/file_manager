@@ -28,47 +28,45 @@ This workflow uploads Actions artifacts and does not create a public release.
 
 ## Local reproduction
 
-Use native CMake, Ninja, C++20 tools, Python 3.11+, GitHub CLI and initialized source submodules. Go/Rust are required only in the
-backend repository. Fetch platform inputs with `tools/fetch_build_inputs.py`. The workflow lists native OS prerequisites.
-Linux needs X11/XWayland; headless test runs use `xvfb-run`.
+**Since 2026-10-26 the build copies the GUI.Forms method exactly** (its
+`docs/building/fast-builds.md` and `reusing-ci-caches.md`): one LLVM 22.1.8
+toolchain per platform, one layout, one `ccache` configuration, and the
+provider's own `gui_forms/tools/ci_build.py` for the toolkit. The workspace is
+this repository's root: `gui_forms/` sits beside `.build/native-<platform>/`
+exactly as in provider CI, so a restored provider cache hits here. The
+frontend is configured with the same `gui_forms/cmake/llvm22.cmake`, and its
+CMake rejects any compiler other than Clang 22.1.x: SDK C++ objects are not
+ABI compatible across compilers.
 
-The native Python pipeline defaults to Clang for C/C++ and honors explicit
-`CC`/`CXX` overrides. CI explicitly selects Clang on all three platforms (Apple Clang on
-macOS). Linux installs LLVM's Clang 22 packages: Ubuntu 24.04's default Clang 18
-rejects the existing in-class friend exception specifications. Windows uses
-MSYS2 **CLANG64**, LLVM/LLD, libc++ and UCRT. Install the
-`mingw-w64-clang-x86_64-{clang,cmake,ninja,python}` packages in MSYS2, then set
-`FILE_MANAGER_CLANG_BIN` to that installation's `clang64/bin` directory. The
-PowerShell helper otherwise looks in the adjacent Plan Paint toolchain's
-`build-deps/msys64/clang64/bin`; it does not modify that toolchain.
-`Build-Windows.ps1` uses fresh `shadow-windows-clang` build directories and
-`shadow-clang-sdk` so existing GCC artifacts are preserved. Rebuild all C++
-consumers with the same toolchain: old GCC/libstdc++ SDKs are not ABI compatible.
-Before reusing the native pipeline's existing `.build/native-windows-x64` or
-Linux build directory, move that directory aside if it was compiled with GCC;
-CMake caches compiler selection. NSIS is not used: Windows output remains a
-portable ZIP.
+| Platform | Compiler | Notes |
+|---|---|---|
+| Windows x64 | the provider's published MSYS2 CLANG64 tree (`gui_forms/tools/windows_toolchain.json`) | extract it at its producer root, `D:\a\_temp\msys64`; system header paths enter the hash |
+| macOS arm64 | Homebrew `llvm@22` and the LLVM 22.1.8 macOS 14 runtime | the runtime arrives in the provider cache archive at `.build/toolchain/llvm-22.1.8-macos14` (`GUI_FORMS_LLVM_RUNTIME`) |
+| Linux x64 | apt.llvm.org `clang-22` (`gui_forms/tools/install_linux_ci_packages.sh toolkit`) | headless tests use `xvfb-run` |
+
+A cache hit needs the producer's exact compiler binary, SDK and options;
+`fetch_build_inputs.py` says after restoring whether the `clang` on `PATH` is
+that binary. A miss is ordinary compilation. Never loosen `ccache` checks to
+force hits. Before reusing an existing `.build/native-<platform>` tree built
+by another compiler, move it aside: CMake caches compiler selection.
 
 ```powershell
-. ./tools/Enter-WindowsToolchain.ps1
-python tools/fetch_build_inputs.py --platform windows-x64
-python tools/build_native.py --jobs 2
+. ./tools/Enter-WindowsToolchain.ps1     # pinned CLANG64 tree and ccache settings
+./tools/Build-Windows.ps1 -Jobs 6        # fetch pinned inputs, then build_native.py
 ```
 
 ```sh
-python3 tools/fetch_build_inputs.py --platform macos-arm64
-python3 tools/build_native.py --jobs 2
-# Linux headless CI:
-export PATH="/usr/lib/llvm-22/bin:$PATH"
-python3 tools/fetch_build_inputs.py --platform linux-x64
-xvfb-run -a python3 tools/build_native.py --jobs 2
+# Set CC/CXX/OBJCXX, the three ccache launchers and CCACHE_* as in
+# .github/workflows/native-builds.yml, with CCACHE_BASEDIR at this root.
+python3 tools/fetch_build_inputs.py --platform macos-arm64   # or linux-x64
+python3 tools/build_native.py --jobs 4                       # Linux: inside xvfb-run -a
+python3 tools/build_native.py --sanitize --jobs 4            # frontend under ASan/UBSan/LSan
 ```
 
-To reuse an already tested native SDK on Shadow:
-
-```powershell
-python tools/build_native.py --jobs 2 --gui-forms-sdk gui_forms/.build/shadow-clang-sdk
-```
+`--sanitize` builds `.build/native-<platform>/frontend-sanitize` with the
+provider's sanitizer profile (`ci_build.sanitizer_options`) against the tested
+Release SDK, runs every frontend test and fails on any report. CI runs it on
+Linux. To reuse an already tested native SDK, pass `--gui-forms-sdk <prefix>`.
 
 Build outputs remain under `.build/native-<platform>-<arch>/`. The independently
 installed picker package is under `frontend-sdk/lib/cmake/FileManagerDocumentPicker`;
@@ -88,11 +86,17 @@ cmake --install .build/native-windows-x64/frontend --component DocumentPicker
 
 ## Package boundaries
 
-- macOS: complete `.app`, private dylib closure rewritten to bundle paths, fonts
-  and notices, ad-hoc signature verified with `codesign`. No Developer ID or
-  notarization claim. The arm64 build does not promise Intel compatibility.
-- Windows: executable, GUI.Forms and CLANG64 DLL closure, fonts and notices.
-  Unsigned portable folder; no installer or system registration.
+- macOS: complete `.app`, private dylib closure (GUI.Forms Application and
+  Threading, and the LLVM 22.1.8 libc++/libc++abi/libunwind built for macOS 14)
+  rewritten to bundle paths, fonts and notices, ad-hoc signature verified with
+  `codesign`. No Developer ID or notarization claim. The arm64 build does not
+  promise Intel compatibility.
+- Windows: executable linked `-static` (LLVM runtimes, winpthreads and the
+  MinGW-w64 CRT embedded, as in GUI.Forms' own programs), the two GUI.Forms
+  DLLs, fonts and notices. The build and the package both reject any import
+  other than a Windows system DLL or a packaged DLL (GUI.Forms'
+  `package_programs.py` rules). Unsigned portable folder; no installer or
+  system registration.
 - Linux: executable, GUI.Forms `.so`, fonts and notices. Ubuntu 24.04/glibc
   baseline with system X11/ATK dependencies, checked by `ldd`; `xdg-utils` supplies
   default Open. Terminal Here remains unavailable pending an admitted terminal

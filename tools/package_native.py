@@ -7,7 +7,9 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
+import sys
 import subprocess
 import tempfile
 import time
@@ -19,6 +21,57 @@ from native_build_support import ROOT, BuildValidation, SourceState, HASH_BUFFER
 from native_build_support import output, run, sdk_fingerprint, record_source_state, sha256, stream_sha256
 from native_macos_package import MacRequirements, mac_closure, mac_minimum_versions
 from collect_diagnostics import stop_owned_process
+
+# GUI.Forms' package rules: its Windows system-DLL list and the compiler
+# runtime DLLs a statically linked LLVM 22 program must never import.
+PROVIDER_TOOLS: Path = ROOT / 'gui_forms/tools'
+if str(PROVIDER_TOOLS) not in sys.path:
+    sys.path.insert(0, str(PROVIDER_TOOLS))
+from package_programs import WINDOWS_FORBIDDEN_RUNTIME_DLL, WINDOWS_SYSTEM_DLLS  # noqa: E402
+
+WINDOWS_IMPORT_PATTERN: str = r'DLL Name:\s*(\S+)'
+
+
+def check_windows_imports(package: Path) -> list[str]:
+    """Fail unless each top-level packaged binary imports only system DLLs and DLLs packaged beside it.
+
+    Returns one report line per binary. Bundled service executables under
+    components/ are the backend's tested bytes and are not inspected here.
+    """
+    objdump: str | None = shutil.which('objdump')
+    if objdump is None:
+        objdump = shutil.which('llvm-objdump')
+    if objdump is None:
+        raise RuntimeError('objdump (or llvm-objdump) is needed to check the package imports')
+    packaged: set[str] = set()
+    binaries: list[Path] = []
+    path: Path
+    for path in sorted(package.iterdir()):
+        suffix: str = path.suffix.lower()
+        if path.is_file() and suffix in ('.exe', '.dll'):
+            binaries.append(path)
+            packaged.add(path.name.lower())
+    report: list[str] = []
+    binary: Path
+    for binary in binaries:
+        listing: str = output(objdump, '-p', binary)
+        names: list[str] = re.findall(WINDOWS_IMPORT_PATTERN, listing)
+        own: list[str] = []
+        name: str
+        for name in names:
+            key: str = name.lower()
+            if key in WINDOWS_SYSTEM_DLLS or key.startswith(('api-ms-win-', 'ext-ms-win-')):
+                continue
+            if WINDOWS_FORBIDDEN_RUNTIME_DLL.fullmatch(name):
+                raise RuntimeError(f'{binary.name} imports the compiler runtime {name}')
+            if key not in packaged:
+                raise RuntimeError(f'{binary.name} imports {name}, which is neither a system DLL nor packaged')
+            own.append(name)
+        imported: str = 'system DLLs only'
+        if own:
+            imported = ', '.join(own)
+        report.append(binary.name + ': ' + imported)
+    return report
 
 
 def smoke_package(executable: Path, package: Path) -> str:
@@ -189,10 +242,24 @@ def main() -> None:
             for component in component_directory.glob('*'):
                 run('codesign', '--force', '--sign', '-', component)
         macos_requirements = mac_minimum_versions(app, package)
+    windows_imports: list[str] = []
+    if host == 'windows':
+        windows_imports = check_windows_imports(package)
     if host == 'linux':
-        executable_dependencies: str = output('ldd', executable)
-        library_dependencies: str = output('ldd', package / 'libgui_forms_application.so.0')
-        dependencies: str = executable_dependencies + '\n' + library_dependencies
+        # As GUI.Forms' packager does: each packaged library finds its
+        # siblings (Application needs Threading) in its own directory, not
+        # only through the executable's RUNPATH, which does not apply to a
+        # library's own dependencies.
+        patchelf: str | None = shutil.which('patchelf')
+        if patchelf is None:
+            raise RuntimeError('patchelf is needed to give packaged GUI.Forms libraries an $ORIGIN RUNPATH')
+        library: Path
+        for library in sorted(package.glob('libgui_forms_*.so*')):
+            run(patchelf, '--set-rpath', '$ORIGIN', library)
+        dependencies: str = output('ldd', executable)
+        for library in sorted(package.glob('libgui_forms_*.so*')):
+            library_dependencies: str = output('ldd', library)
+            dependencies += '\n' + library.name + ':\n' + library_dependencies
         if 'not found' in dependencies:
             raise RuntimeError(dependencies)
         dependency_record: Path = package / 'linux-runtime-dependencies.txt'
@@ -215,6 +282,8 @@ def main() -> None:
         'signature': 'ad-hoc, not Developer ID notarized' if host == 'macos' else 'unsigned',
         'linux_baseline': 'Ubuntu 24.04, X11 or XWayland, system X11/ATK/AT-SPI libraries; xdg-utils for default Open' if host == 'linux' else None,
         'macos_requirements': macos_requirements if host == 'macos' else None,
+        'windows_imports': windows_imports if host == 'windows' else None,
+        'toolchain': 'LLVM 22.1.8 through gui_forms/cmake/llvm22.cmake; see gui-forms-consumption.json',
         'executable': receipt_executable,
         'executable_sha256': sha256(executable),
         'font_rights': 'Portsmouth owner-supplied evaluation fonts; production redistribution-rights gate remains open; attribution retained',

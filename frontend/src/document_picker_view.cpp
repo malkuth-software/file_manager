@@ -326,6 +326,12 @@ void DocumentPickerView::connect_callbacks() {
         subscriptions_.push_back(std::move(subscription));
     }
     {
+        // Each picker text box is an edit session: plain Enter commits it
+        // (committed()) and stops there, as before GUI.Forms 0.2 made Enter
+        // travel on to containers and the accept button by default.
+        (*name_filter_).set_accepts_enter(true);
+        (*path_).set_accepts_enter(true);
+        (*filename_).set_accepts_enter(true);
         const gui_forms::Delegate<const std::string&> callback =
             gui_forms::Delegate<const std::string&>::bind<
                 DocumentPickerView, &DocumentPickerView::name_filter_committed>(*this);
@@ -361,6 +367,9 @@ void DocumentPickerView::connect_callbacks() {
         subscriptions_.push_back(std::move(subscription));
     }
     {
+        // The path box is an in-place editor: plain Escape reverts its text
+        // and stops there rather than reaching the dialog's Cancel button.
+        (*path_).set_accepts_escape(true);
         const gui_forms::Delegate<> callback =
             gui_forms::Delegate<>::bind<DocumentPickerView, &DocumentPickerView::path_cancelled>(
                 *this);

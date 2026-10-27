@@ -42,6 +42,9 @@ const DocumentTypeFilter* find_filter(const std::vector<DocumentTypeFilter>& fil
     }
     return nullptr;
 }
+// The result points into `filters`: a temporary filter list may not be passed.
+const DocumentTypeFilter* find_filter(std::vector<DocumentTypeFilter>&& filters,
+                                      std::string_view id) = delete;
 
 // Resolves navigation only. The caller still uses the contained no-link reader
 // and returns observations of the canonical target, never of the alias.

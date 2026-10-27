@@ -24,23 +24,49 @@ thread_local std::size_t permitted = std::numeric_limits<std::size_t>::max();
 thread_local bool rejected{};
 }
 
-void* operator new(const std::size_t bytes) {
-    if (progress_allocation_fixture::permitted != std::numeric_limits<std::size_t>::max()) {
-        if (progress_allocation_fixture::permitted == 0U) {
-            progress_allocation_fixture::permitted = std::numeric_limits<std::size_t>::max();
-            progress_allocation_fixture::rejected = true;
-            throw std::bad_alloc{};
+namespace progress_allocation_fixture {
+// Every replaced form below allocates here and releases with std::free, so
+// no allocation can meet a deallocator of another family. A sanitizer
+// runtime replaces each form this file leaves out, and mixing them is an
+// alloc-dealloc mismatch: libstdc++'s stable_sort took a nothrow buffer from
+// AddressSanitizer and returned it through this file's sized delete (CI run
+// 40466042854). Returns null for an armed rejection or an exhausted heap.
+void* allocate(const std::size_t bytes) noexcept {
+    if (permitted != std::numeric_limits<std::size_t>::max()) {
+        if (permitted == 0U) {
+            permitted = std::numeric_limits<std::size_t>::max();
+            rejected = true;
+            return nullptr;
         }
-        --progress_allocation_fixture::permitted;
+        --permitted;
     }
     const std::size_t allocation_size = bytes == 0U ? 1U : bytes;
     void* const memory = std::malloc(allocation_size);
+    return memory;
+}
+
+void* allocate_or_throw(const std::size_t bytes) {
+    void* const memory = allocate(bytes);
     if (memory == nullptr) throw std::bad_alloc{};
     return memory;
+}
+}
+
+void* operator new(const std::size_t bytes) { return progress_allocation_fixture::allocate_or_throw(bytes); }
+void* operator new[](const std::size_t bytes) { return progress_allocation_fixture::allocate_or_throw(bytes); }
+void* operator new(const std::size_t bytes, const std::nothrow_t&) noexcept {
+    return progress_allocation_fixture::allocate(bytes);
+}
+void* operator new[](const std::size_t bytes, const std::nothrow_t&) noexcept {
+    return progress_allocation_fixture::allocate(bytes);
 }
 
 void operator delete(void* const memory) noexcept { std::free(memory); }
 void operator delete(void* const memory, std::size_t) noexcept { std::free(memory); }
+void operator delete(void* const memory, const std::nothrow_t&) noexcept { std::free(memory); }
+void operator delete[](void* const memory) noexcept { std::free(memory); }
+void operator delete[](void* const memory, std::size_t) noexcept { std::free(memory); }
+void operator delete[](void* const memory, const std::nothrow_t&) noexcept { std::free(memory); }
 
 namespace file_manager {
 class ApplicationTransferProbe final {
