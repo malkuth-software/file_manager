@@ -58,7 +58,7 @@ before enabling unrelated development renderer options, and retains both logs.
 
 **MEASURED:** GCC 16.2.0, C++20, Release `-O3 -DNDEBUG`, Shadow Windows x64,
 installed `gui_forms/.build/shadow-sdk` Core. Provider archive/source hashes and
-raw measurements are in `../../results/2026-10-04-preview-admission/`.
+raw measurements are in `notes:results/2026-10-04-preview-admission/`.
 The final forward/reverse medians, in milliseconds:
 
 | Height | Raw BGRA p50 | Stored PNG p50 | Deflated PNG p50 |

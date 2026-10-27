@@ -8,38 +8,38 @@ The parent product remains in **pre-plan** where decisions are unresolved, but
 its repository topology, engine spine, Orchestrator integration authority, and
 negotiated delivery order are now accepted. The unified suite/distribution is
 named **Malkuth** under ADR-012; File Manager remains the application name. The
-work in [`planning/`](planning/) defines the remaining decisions, evidence,
+work in `notes:planning/` defines the remaining decisions, evidence,
 exclusions, and component gates.
 
 Start with:
 
-- [`planning/README.md`](planning/README.md) — current phase and artifact map;
-- [`planning/PROGRAM_MAP.md`](planning/PROGRAM_MAP.md) — component ownership,
+- `notes:planning/README.md` — current phase and artifact map;
+- `notes:planning/PROGRAM_MAP.md` — component ownership,
   current permissions, contract authority, and build order;
 - [`malkuth/`](malkuth/) — Curious/Concise/Friendly mission, release horizons,
   documentation, installer, website, and release-manifest planning;
-- [`planning/PREPLAN_CHARTER.md`](planning/PREPLAN_CHARTER.md) — the plan for
+- `notes:planning/PREPLAN_CHARTER.md` — the plan for
   producing the actual project plan;
-- [`planning/EVIDENCE_REGISTER.md`](planning/EVIDENCE_REGISTER.md) — Zeta
+- `notes:planning/EVIDENCE_REGISTER.md` — Zeta
   search research, BFFT research discipline, and Modern.Forms reconnaissance;
-- [`planning/ARCHITECTURE_INPUTS.md`](planning/ARCHITECTURE_INPUTS.md) — recorded
+- `notes:planning/ARCHITECTURE_INPUTS.md` — recorded
   constraints and positive product direction from the architect;
-- [`planning/SURFACE_PIPELINE.md`](planning/SURFACE_PIPELINE.md) — native retained
+- `notes:planning/SURFACE_PIPELINE.md` — native retained
   UI pipeline hypothesis, including a possible Modern.Forms compatibility layer;
-- [`planning/QUESTION_ATLAS.md`](planning/QUESTION_ATLAS.md) — numbered
+- `notes:planning/QUESTION_ATLAS.md` — numbered
   anti-requirement and architecture questions.
-- [`frontend/planning/visual/ceremonial-software-atlas.html`](frontend/planning/visual/ceremonial-software-atlas.html)
+- `notes:planning/frontend/visual/ceremonial-software-atlas.html`
   — visible accept/distill/reject board for installer animation, OOBE, and
   Visual Studio/professional-software aesthetics from 2000–2012.
-- [`frontend/planning/visual/material-depth-atlas.html`](frontend/planning/visual/material-depth-atlas.html)
+- `notes:planning/frontend/visual/material-depth-atlas.html`
   — visible static board for relief, instruments, object icons, illustrated
   utility surfaces, and frozen screensaver-pattern families.
-- [`planning/gui_forms/GUI_FORMS_BACKEND_DECISION_MAP.md`](planning/gui_forms/GUI_FORMS_BACKEND_DECISION_MAP.md)
+- `notes:planning/gui_forms/GUI_FORMS_BACKEND_DECISION_MAP.md`
   — the technical decision interview for the independent GUI.Forms framework.
-- [`planning/gui_forms/GUI_FORMS_INTERVIEW_LEDGER.md`](planning/gui_forms/GUI_FORMS_INTERVIEW_LEDGER.md)
+- `notes:planning/gui_forms/GUI_FORMS_INTERVIEW_LEDGER.md`
   — GIVEN GUI.Forms constraints, candidate tradeoffs, and the deeper host,
   renderer, layout, and behavior interview; formal selection comes later.
-- [`planning/gui_forms/GUI_FORMS_RESOURCES_AND_CONFIGURATION.md`](planning/gui_forms/GUI_FORMS_RESOURCES_AND_CONFIGURATION.md)
+- `notes:planning/gui_forms/GUI_FORMS_RESOURCES_AND_CONFIGURATION.md`
   — compiled theme/language packs, PNG policy, safe fallbacks, and mutable
   runtime-configuration candidates.
 
@@ -59,7 +59,7 @@ seed. It consumes exact tested backend binaries instead of rebuilding Go/Rust.
 Run `python3 tools/fetch_build_inputs.py --platform macos-arm64` (or `linux-x64`,
 `windows-x64`) before `python3 tools/build_native.py --jobs 2`. GitHub CLI is
 required for fetching. The lock verifies backend archive and executable hashes.
-See [ADR-021](decisions/ADR-021-COMPONENT-REPOSITORIES-AND-BUILD-REUSE.md).
+See ADR-021 (`notes:decisions/ADR-021-COMPONENT-REPOSITORIES-AND-BUILD-REUSE.md`).
 
 ## Program repositories
 
@@ -97,6 +97,6 @@ Each directory contains its own `AGENTS.md`, build boundary, ledgers, acceptance
 gates, and a handoff prompt suitable for a dedicated Codex task.
 
 Accepted architecture records are indexed in
-[`decisions/README.md`](decisions/README.md). Engine workers must also read both
+`notes:decisions/README.md`. Engine workers must also read both
 [`engine/docs/ARCHITECT_HANDOFF_001.md`](engine/docs/ARCHITECT_HANDOFF_001.md)
 and [`engine/docs/ARCHITECT_HANDOFF_002.md`](engine/docs/ARCHITECT_HANDOFF_002.md).

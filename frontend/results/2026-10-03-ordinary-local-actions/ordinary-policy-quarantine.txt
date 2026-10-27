@@ -1,1 +1,0 @@
-File Manager: --quarantine requires --allow-mutations
