@@ -39,8 +39,11 @@ TOOLCHAIN_FILE: Path = ROOT / 'gui_forms/cmake/llvm22.cmake'
 SMOKE_TEST: str = 'file_manager_frontend_model_tests'
 # The lockstep record's layout (harness/lockstep.py); another schema is refused.
 LOCKSTEP_SCHEMA: int = 1
-LOCKSTEP_FIELDS: tuple[str, ...] = ('commit', 'target', 'compiler', 'prefix', 'package_dir', 'source',
-                                    'toolchain_file', 'font_dir', 'llvm_runtime', 'lang')
+LOCKSTEP_FIELDS: tuple[str, ...] = ('commit', 'target', 'features', 'compiler', 'prefix', 'package_dir',
+                                    'source', 'toolchain_file', 'font_dir', 'llvm_runtime', 'lang')
+# The lockstep feature set File Manager links: its native host, CPU Skia and
+# the text stack, which only the whole toolkit ("all") provides.
+LOCKSTEP_FEATURES: str = 'all'
 
 
 @dataclass(frozen=True)
@@ -103,7 +106,8 @@ def submodule_source(supplied_sdk: Path | None) -> ToolkitSource:
 def lockstep_source(record_path: Path, configuration: HostConfiguration) -> ToolkitSource:
     """Read and check the lockstep record; nothing is changed if it is refused.
 
-    The record must be schema 1 for this host's target, its source clone must
+    The record must be schema 1 for this host's target and the whole feature
+    set (features is part of the lockstep key), its source clone must
     be at the recorded commit, and the clang on PATH must be the recorded
     compiler, since SDK C++ objects are not ABI compatible across compilers.
     On success LANG is set to the recorded locale, which ccache hashes.
@@ -122,6 +126,9 @@ def lockstep_source(record_path: Path, configuration: HostConfiguration) -> Tool
     target: str = configuration.host + '-' + configuration.architecture
     if values['target'] != target:
         raise RuntimeError(f'{record_path}: lockstep target {values["target"]}, this host is {target}')
+    if values['features'] != LOCKSTEP_FEATURES:
+        raise RuntimeError(f'{record_path}: lockstep features {values["features"]!r}; '
+                           f'File Manager needs {LOCKSTEP_FEATURES!r}')
     source: Path = Path(values['source'])
     prefix: Path = Path(values['prefix'])
     if Path(values['package_dir']) != prefix / 'lib/cmake/GUIForms':
@@ -137,7 +144,7 @@ def lockstep_source(record_path: Path, configuration: HostConfiguration) -> Tool
     result: ToolkitSource = ToolkitSource(
         source=source, toolchain_file=Path(values['toolchain_file']), font_dir=Path(values['font_dir']),
         revision=values['commit'], sdk=prefix, llvm_runtime=values['llvm_runtime'],
-        description='lockstep ' + values['commit'] + ' (' + str(record_path) + ')')
+        description='lockstep ' + values['commit'] + ' ' + values['features'] + ' (' + str(record_path) + ')')
     return result
 
 

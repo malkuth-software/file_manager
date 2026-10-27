@@ -186,7 +186,8 @@ class LockstepRecordTests(unittest.TestCase):
         self.configuration: build_native.HostConfiguration = build_native.HostConfiguration(
             host='windows', architecture='x64')
         self.record: dict[str, object] = {
-            'schema': 1, 'commit': self.commit, 'target': 'windows-x64', 'toolchain_identity': 'fixture',
+            'schema': 1, 'commit': self.commit, 'target': 'windows-x64', 'features': 'all',
+            'toolchain_identity': 'fixture',
             'compiler': str(self.compiler), 'prefix': str(self.prefix),
             'package_dir': str(self.prefix / 'lib/cmake/GUIForms'), 'source': str(self.source),
             'toolchain_file': str(self.source / 'cmake/llvm22.cmake'),
@@ -218,7 +219,8 @@ class LockstepRecordTests(unittest.TestCase):
 
     def test_refused_records(self) -> None:
         refusals: list[tuple[str, object]] = [
-            ('schema', 2), ('target', 'linux-x64'), ('commit', '0' * 40),
+            ('schema', 2), ('target', 'linux-x64'), ('features', 'core'), ('features', None),
+            ('commit', '0' * 40),
             ('package_dir', str(self.prefix / 'lib')), ('compiler', str(self.other_compiler)),
             ('font_dir', None)]
         field: str
