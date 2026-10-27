@@ -51,8 +51,10 @@ python3 tools/build_native.py --smoke    # the bootstrap smoke: toolkit, then th
 ```
 
 Once the `gui_forms` submodule carries its own `harness.lock` (GUI.Forms #408
-and later), both locks must name one commit; CI's harness-checkout step fails
-otherwise. GUI.Forms' own `ci_build.py`, `package_programs.py` and sanitizer
+and later), its tools run from this same checkout, so File Manager's lock
+must name the submodule's harness commit or a later one; CI's
+harness-checkout step fails otherwise. The two are made equal again at each
+submodule move. GUI.Forms' own `ci_build.py`, `package_programs.py` and sanitizer
 suppressions are still used from `gui_forms/tools/`.
 
 **Local lockstep builds (owner direction, 2026-10-27).** On the shared
