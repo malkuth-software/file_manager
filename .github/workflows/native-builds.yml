@@ -29,11 +29,13 @@ on:
 permissions:
   contents: read
 concurrency:
-  # A newer push to a branch cancels its older run; a push to main waits for
-  # the previous main run, whose cache saves the next one restores. Manual
-  # diagnostics have their own group and never cancel a pushed commit's checks.
+  # Only pull requests cancel: a newer push to a pull request cancels its older
+  # run. A push to main never cancels the main run in progress, which may be
+  # building or publishing a release; it waits, and the previous run's cache
+  # saves are what it restores. Manual diagnostics have their own group and
+  # never cancel a pushed commit's checks.
   group: native-${{ github.event_name == 'workflow_dispatch' && 'manual-' || '' }}${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   house-style:
     name: House-style spelling and lifetime checks

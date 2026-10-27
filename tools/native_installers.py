@@ -57,7 +57,7 @@ class InstallerIdentity:
 
 IDENTITY: InstallerIdentity = InstallerIdentity(
     vendor='Malkuth Software',
-    maintainer='Malkuth Software <noreply@malkuthsoft.invalid>',
+    maintainer='Malkuth Software <maintainer@malkuthsoft.com>',
     repository='malkuth-software/file_manager',
     bundle_identifier='com.malkuthsoft.filemanager',
     deb_package='malkuth-file-manager',
