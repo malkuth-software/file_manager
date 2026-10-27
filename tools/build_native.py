@@ -233,7 +233,7 @@ def build_sanitized_frontend(toolkit: ToolkitSource, host: str, build: Path, sdk
         # and button-recipe frames need about 1.1 MB, over Windows' 1 MB main
         # thread (gui_forms tools/stack_frames.py). Reserve the 8 MB Linux and
         # macOS give main, in this tree only, until the generator is replaced;
-        # packaged programs keep the default (planning/GUI_FORMS_0_2_CONSUMPTION_2026-10-26.md).
+        # packaged programs keep the default (notes:planning/GUI_FORMS_0_2_CONSUMPTION_2026-10-26.md).
         options.append('-DCMAKE_EXE_LINKER_FLAGS=' + ci_build.SANITIZER_LINK_FLAGS + ' -Wl,--stack,8388608')
     frontend: Path = build / 'frontend-sanitize'
     configure_frontend(toolkit, frontend, sdk, build, manifest, options)

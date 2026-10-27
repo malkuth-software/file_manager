@@ -42,7 +42,7 @@ The repair removes the rejected synthetic navigation and rebuilds toward the
 accepted dense House Composite geography. `Places` and `Recent locations` are
 absent from both authored and native trees; Home and Volumes are the honest
 daily navigation roots. The rejected build remains documented under
-[`planning/OWNER_CORRECTION_2026-08-11.md`](planning/OWNER_CORRECTION_2026-08-11.md)
+`notes:planning/frontend/OWNER_CORRECTION_2026-08-11.md`
 and the first dogfood record; it is not counted as 1.0 evidence.
 
 `FileManager::DocumentPicker`, `FileManager::DocumentPickerView`, and their
@@ -64,11 +64,11 @@ build directory. CMake stages the GUI.Forms DLL, its CLANG64 runtime dependency
 closure, fonts, and dependency notices beside the executable. This is a
 local development layout, not an installer or a release-ready distribution.
 The current ergonomic changes and native verification record are in
-[`planning/DAILY_BROWSING_2026-09-29.md`](planning/DAILY_BROWSING_2026-09-29.md).
+`notes:planning/frontend/DAILY_BROWSING_2026-09-29.md`.
 The measured Windows performance repair is staged separately at
 `frontend/.build/shadow-windows-latency/File Manager.exe` so an already-running
 older build can remain open. See
-[`results/2026-09-29-shadow-windows/LATENCY.md`](results/2026-09-29-shadow-windows/LATENCY.md)
+`notes:results/2026-09-29-shadow-windows/LATENCY.md`
 for the same-application before/after results and remaining performance limits.
 The Clang helper writes its own development consumption manifest in
 `gui_forms/.build/shadow-clang-sdk/gui-forms-consumption.json`. The historical
@@ -99,7 +99,7 @@ The authored Web.Forms controls and retained GUI.Forms composition are preserved
 Windows currently uses its standard native outer frame. Native visual and
 accessibility parity, removable-drive handling, and daily mutation promotion
 remain outstanding. Detailed evidence and exclusions are in
-[`results/2026-09-29-shadow-windows/README.md`](results/2026-09-29-shadow-windows/README.md).
+`notes:results/2026-09-29-shadow-windows/README.md`.
 
 Build on the M4 after installing the named GUI.Forms package:
 
@@ -154,14 +154,14 @@ target_link_libraries(my_app PRIVATE FileManager::DocumentPickerView)
 
 Corrective control audits, cross-component test results, and M4 Screen Sharing
 observations are recorded under
-[`results/2026-08-11-m4-dogfood/`](results/2026-08-11-m4-dogfood/). The
-[`2026-08-10 record`](results/2026-08-10-m4-dogfood/) remains the rejected
+`notes:results/2026-08-11-m4-dogfood/`. The
+`2026-08-10 record` (`notes:results/2026-08-10-m4-dogfood/`) remains the rejected
 baseline and negative evidence.
 
 The exact first slice and gate are in
-[`planning/FRONTEND_001.md`](planning/FRONTEND_001.md) and
-[`planning/DEPENDENCY_GATES.md`](planning/DEPENDENCY_GATES.md). Its visual
+`notes:planning/frontend/FRONTEND_001.md` and
+`notes:planning/frontend/DEPENDENCY_GATES.md`. Its visual
 constitution is
-[`planning/visual/DESIGN_DNA_006.md`](planning/visual/DESIGN_DNA_006.md).
+`notes:planning/frontend/visual/DESIGN_DNA_006.md`.
 The total implementation and integrated dogfood program is
-[`planning/TOTAL_IMPLEMENTATION_PLAN.md`](planning/TOTAL_IMPLEMENTATION_PLAN.md).
+`notes:planning/frontend/TOTAL_IMPLEMENTATION_PLAN.md`.

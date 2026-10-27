@@ -9,7 +9,7 @@ Orchestrator or the registered degraded fallback.
 
 Orchestrator Core 1.0, the named GUI.Forms FM0 snapshot, and explicit architect
 direction are all recorded as passed. See
-`planning/OWNER_DIRECTION_2026-08-10.md`,
+`notes:planning/frontend/OWNER_DIRECTION_2026-08-10.md`,
 `../gui_forms/manifests/gui-forms-fm0-macos-arm64-2026-08-10.json`, and ADR-016.
 Application source, CMake/install work, generated build-tree C++, and protected
 M4 dogfood are authorized. Engine, settings, handlers, plugins, semantic facts,
@@ -19,19 +19,19 @@ their actual states come from Orchestrator and the staged plan.
 Before editing, read:
 
 1. `README.md`
-2. `planning/FRONTEND_CHARTER.md`
-3. `planning/DEPENDENCY_GATES.md`
-4. `planning/FRONTEND_001.md`
-5. `planning/visual/DESIGN_DNA_006.md`
-6. `planning/visual/FRONTEND_DESIGN_BRIEF_001.md`
-7. `planning/visual/ICON_AUDIT_MIT_002.md`
-8. `planning/DOGFOOD_SEQUENCE.md`
-9. `planning/CONTEXTUAL_BUILTIN_COMMANDS.md`
-10. `planning/DESKTOP_INTEGRATION_BOUNDARY.md`
+2. `notes:planning/frontend/FRONTEND_CHARTER.md`
+3. `notes:planning/frontend/DEPENDENCY_GATES.md`
+4. `notes:planning/frontend/FRONTEND_001.md`
+5. `notes:planning/frontend/visual/DESIGN_DNA_006.md`
+6. `notes:planning/frontend/visual/FRONTEND_DESIGN_BRIEF_001.md`
+7. `notes:planning/frontend/visual/ICON_AUDIT_MIT_002.md`
+8. `notes:planning/frontend/DOGFOOD_SEQUENCE.md`
+9. `notes:planning/frontend/CONTEXTUAL_BUILTIN_COMMANDS.md`
+10. `notes:planning/frontend/DESKTOP_INTEGRATION_BOUNDARY.md`
 11. `../backend/orchestrator/spec/CONTRACT_REGISTRY.md`
 12. the accepted root ADRs and relevant parent planning records.
-13. `planning/ORCHESTRATOR_INTERFACE_NEGOTIATION.md` for the frontend client edge.
-14. `planning/OWNER_DIRECTION_2026-08-10.md` and root ADR-016 for the active
+13. `notes:planning/frontend/ORCHESTRATOR_INTERFACE_NEGOTIATION.md` for the frontend client edge.
+14. `notes:planning/frontend/OWNER_DIRECTION_2026-08-10.md` and root ADR-016 for the active
     implementation/authoring route.
 
 ## Boundary rules
