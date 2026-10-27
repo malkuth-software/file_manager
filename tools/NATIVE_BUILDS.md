@@ -133,7 +133,7 @@ Every package also gets an installer built from the same verified folder
 templates in `packaging/`): a per-user NSIS `-setup.exe` into
 `%LOCALAPPDATA%\Programs\File Manager`, a macOS `.pkg` into
 `/Applications/File Manager`, and a `.deb` into `/opt/file-manager` with a
-`rainstar-file-manager` launcher and desktop entry. The `.deb` and `.pkg`
+`malkuth-file-manager` launcher and desktop entry. The `.deb` and `.pkg`
 are expanded and every file's hash compared before they are admitted; the
 Windows installer is checked only with `--installer-install-check`, a silent
 install into scratch and uninstall that CI runs (it touches the Start Menu

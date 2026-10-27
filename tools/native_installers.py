@@ -43,7 +43,7 @@ LINUX_FALLBACK_DEPENDS: str = ('libc6, libx11-6, libxcursor1, libxfixes3, libxre
 
 @dataclass(frozen=True)
 class InstallerIdentity:
-    """The names an installed File Manager is known by; GUI.Forms' programs use the same vendor."""
+    """The names an installed File Manager is known by (the owner's product vendor identity, 2026-10-27)."""
     vendor: str
     maintainer: str
     repository: str
@@ -56,13 +56,13 @@ class InstallerIdentity:
 
 
 IDENTITY: InstallerIdentity = InstallerIdentity(
-    vendor='Rainstar',
-    maintainer='Joshuah Rainstar <noreply@rainstar.invalid>',
+    vendor='Malkuth Software',
+    maintainer='Malkuth Software <noreply@malkuthsoft.invalid>',
     repository='malkuth-software/file_manager',
-    bundle_identifier='org.rainstar.filemanager',
-    deb_package='rainstar-file-manager',
+    bundle_identifier='com.malkuthsoft.filemanager',
+    deb_package='malkuth-file-manager',
     windows_install_dir='$LOCALAPPDATA\\Programs\\File Manager',
-    windows_uninstall_key='Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\RainstarFileManager',
+    windows_uninstall_key='Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MalkuthSoftwareFileManager',
     macos_install_location='/Applications/File Manager',
     linux_install_dir='/opt/file-manager')
 

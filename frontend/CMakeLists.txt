@@ -222,7 +222,7 @@ if(FILE_MANAGER_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
 endif()
 set_target_properties(file_manager PROPERTIES
     MACOSX_BUNDLE_BUNDLE_NAME "File Manager"
-    MACOSX_BUNDLE_GUI_IDENTIFIER "local.filemanager.frontend"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.malkuthsoft.filemanager"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${FILE_MANAGER_BUNDLE_VERSION}"
     MACOSX_BUNDLE_BUNDLE_VERSION "1"
     OUTPUT_NAME "File Manager"
