@@ -42,17 +42,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - uses: ./.github/actions/harness-checkout
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      # The pinned provider's checkers, so File Manager is held to the rules
-      # GUI.Forms applies to itself (planning/PROGRAMMING_HOUSE_STYLE.md
-      # sections 2, 5, 9 and 10). They check spelling and two lifetime rules
-      # only; ownership, ordering and naming still need source review.
-      - name: Check first-party C++ against the provider's checkers
+      # The pinned harness's checkers, the ones GUI.Forms applies to itself
+      # (planning/PROGRAMMING_HOUSE_STYLE.md sections 2, 5, 9 and 10). They
+      # check spelling and two lifetime rules only; ownership, ordering and
+      # naming still need source review.
+      - name: Check first-party C++ against the harness's checkers
         run: |
-          python3 -B gui_forms/tools/check_house_style.py frontend/include frontend/src frontend/tests frontend/examples frontend/experiments backend/orchestrator/conformance/clients/cpp
-          python3 -B gui_forms/tools/check_lifetime_rules.py frontend/include frontend/src frontend/tests frontend/examples frontend/experiments backend/orchestrator/conformance/clients/cpp
+          python3 -B template_harness/harness/check_house_style.py frontend/include frontend/src frontend/tests frontend/examples frontend/experiments backend/orchestrator/conformance/clients/cpp
+          python3 -B template_harness/harness/check_lifetime_rules.py frontend/include frontend/src frontend/tests frontend/examples frontend/experiments backend/orchestrator/conformance/clients/cpp
+      # The pinned harness has no CI of its own yet: check File Manager's
+      # derived names, and that no other project's prefixes overlap them.
+      - name: Test File Manager's project file at the pinned harness
+        working-directory: template_harness/harness
+        run: python3 -B -m unittest test_file_manager_names test_project_prefixes
       - name: Test the build tooling
         run: |
           python3 -B tools/backend_bundle_tests.py
@@ -81,6 +87,7 @@ jobs:
     timeout-minutes: 120
     env:
       GUI_FORMS_RUNNER: ${{ matrix.runner }}
+      FILE_MANAGER_RUNNER: ${{ matrix.runner }}
       OBJCXX: clang++
       CC: clang
       CXX: clang++
@@ -102,6 +109,9 @@ jobs:
           # separate system config otherwise misreports CRLF files as changed.
           git config --local core.autocrlf true
           git submodule foreach --recursive git config --local core.autocrlf true
+      # After the product's checkout, which cleans the workspace; sets
+      # HARNESS_PROJECT and HARNESS_WORKSPACE for every later step.
+      - uses: ./.github/actions/harness-checkout
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -113,15 +123,15 @@ jobs:
           python-version: '3.14'
           update-environment: false
       # The provider's published MSYS2 CLANG64 tree, extracted at the
-      # producer's msys root; never the current MSYS2 mirror packages. The
-      # tool names its release repository through GITHUB_REPOSITORY.
+      # producer's msys root; never the current MSYS2 mirror packages.
+      # projects/file_manager.toml's [toolchain] names GUI.Forms' release.
       - name: Restore the provider's pinned Windows toolchain
         if: runner.os == 'Windows'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           TOOLCHAIN_PYTHON: ${{ steps.toolchain-python.outputs.python-path }}
-        run: GITHUB_REPOSITORY=malkuth-software/gui_forms "$TOOLCHAIN_PYTHON" gui_forms/tools/windows_toolchain.py restore
+        run: '"$TOOLCHAIN_PYTHON" template_harness/harness/windows_toolchain.py restore'
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
         env:
@@ -131,6 +141,7 @@ jobs:
           brew install cmake ninja ccache llvm@22
           echo "$(brew --prefix llvm@22)/bin" >> "$GITHUB_PATH"
           echo "GUI_FORMS_LLVM_RUNTIME=$PWD/.build/toolchain/llvm-22.1.8-macos14" >> "$GITHUB_ENV"
+          echo "FILE_MANAGER_LLVM_RUNTIME=$PWD/.build/toolchain/llvm-22.1.8-macos14" >> "$GITHUB_ENV"
       - name: Name the Linux package cache
         id: linux-image
         if: runner.os == 'Linux'
@@ -140,13 +151,13 @@ jobs:
         if: runner.os == 'Linux'
         with:
           path: ${{ runner.temp }}/apt-archives
-          key: file-manager-debs-v1-${{ runner.arch }}-${{ hashFiles('gui_forms/tools/install_linux_ci_packages.sh') }}-${{ steps.linux-image.outputs.image }}
-          restore-keys: file-manager-debs-v1-${{ runner.arch }}-${{ hashFiles('gui_forms/tools/install_linux_ci_packages.sh') }}-
-      # The provider's programs profile: the toolkit set plus patchelf, which
-      # packaging uses to give the GUI.Forms libraries an $ORIGIN RUNPATH.
+          key: file-manager-debs-v1-${{ runner.arch }}-${{ hashFiles('template_harness/harness/install_linux_ci_packages.sh', 'template_harness/projects/file_manager.toml') }}-${{ steps.linux-image.outputs.image }}
+          restore-keys: file-manager-debs-v1-${{ runner.arch }}-${{ hashFiles('template_harness/harness/install_linux_ci_packages.sh', 'template_harness/projects/file_manager.toml') }}-
+      # File Manager's native profile: GUI.Forms' toolkit set plus patchelf,
+      # which packaging uses to give the GUI.Forms libraries an $ORIGIN RUNPATH.
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sh gui_forms/tools/install_linux_ci_packages.sh programs "$RUNNER_TEMP/apt-archives"
+        run: sh template_harness/harness/install_linux_ci_packages.sh native "$RUNNER_TEMP/apt-archives"
       - uses: actions/cache/save@v4
         if: runner.os == 'Linux' && github.event_name != 'pull_request' && steps.linux-packages.outputs.cache-hit != 'true'
         with:
@@ -154,7 +165,7 @@ jobs:
           key: ${{ steps.linux-packages.outputs.cache-primary-key }}
       - name: Identify and verify the LLVM 22.1.8 compiler
         id: compiler
-        run: python gui_forms/tools/compiler_identity.py
+        run: python template_harness/harness/compiler_identity.py
       - name: Configure compiler cache
         run: |
           cache_dir="$PWD/.ccache"
@@ -193,12 +204,12 @@ jobs:
           # on another runner image the manifest check fails, and its remedy
           # is a rebuild. A missing runtime is built the same way.
           if [ ! -f "$GUI_FORMS_LLVM_RUNTIME/runtime-manifest.json" ] ||
-             ! python gui_forms/tools/macos_runtime_manifest.py "$GUI_FORMS_LLVM_RUNTIME"; then
+             ! python template_harness/harness/macos_runtime_manifest.py "$GUI_FORMS_LLVM_RUNTIME"; then
             rm -rf "$GUI_FORMS_LLVM_RUNTIME"
-            python gui_forms/tools/build_macos_runtimes.py --work "$RUNNER_TEMP/llvm-runtimes" --prefix "$GUI_FORMS_LLVM_RUNTIME" --jobs 4
+            python template_harness/harness/build_macos_runtimes.py --work "$RUNNER_TEMP/llvm-runtimes" --prefix "$GUI_FORMS_LLVM_RUNTIME" --jobs 4
           fi
-          python gui_forms/tools/macos_runtime_manifest.py "$GUI_FORMS_LLVM_RUNTIME"
-          python gui_forms/tools/audit_macos_minimum.py "$GUI_FORMS_LLVM_RUNTIME/lib"
+          python template_harness/harness/macos_runtime_manifest.py "$GUI_FORMS_LLVM_RUNTIME"
+          python template_harness/harness/audit_macos_minimum.py "$GUI_FORMS_LLVM_RUNTIME/lib"
       - uses: actions/cache/restore@v4
         id: dependencies
         with:
@@ -324,7 +335,7 @@ jobs:
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
       - name: Keep only the compiler cache entries this build used
         if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: python gui_forms/tools/ci_cache.py evict --since "$GUI_FORMS_JOB_START"
+        run: python template_harness/harness/ci_cache.py evict --since "$GUI_FORMS_JOB_START"
       - uses: actions/cache/save@v4
         if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.objects.outputs.cache-hit != 'true'
         with:
@@ -373,8 +384,8 @@ jobs:
             cache-manifest.json
           if-no-files-found: ignore
   # After the saving jobs of a push to main: delete the cache entries each new
-  # save superseded, keeping the newest of each family (gui_forms
-  # tools/ci_cache.py prune). The only job with actions: write.
+  # save superseded, keeping the newest of each family (template_harness
+  # harness/ci_cache.py prune). The only job with actions: write.
   cache-prune:
     needs: native
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -385,9 +396,8 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      - uses: ./.github/actions/harness-checkout
       - name: Delete superseded cache generations
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 -B gui_forms/tools/ci_cache.py prune --ref refs/heads/main --apply
+        run: python3 -B template_harness/harness/ci_cache.py prune --ref refs/heads/main --apply

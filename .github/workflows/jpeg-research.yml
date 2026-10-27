@@ -6,11 +6,15 @@ on:
       - 'frontend/experiments/jpeg_decode/**'
       - 'backend'
       - '.github/workflows/jpeg-research.yml'
+      - 'harness.lock'
+      - '.github/actions/harness-checkout/**'
   pull_request:
     paths:
       - 'frontend/experiments/jpeg_decode/**'
       - 'backend'
       - '.github/workflows/jpeg-research.yml'
+      - 'harness.lock'
+      - '.github/actions/harness-checkout/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,10 +36,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - uses: ./.github/actions/harness-checkout
       - name: Check authored C++ spelling and lifetime rules
         run: |
-          python -B gui_forms/tools/check_house_style.py frontend/experiments/jpeg_decode
-          python -B gui_forms/tools/check_lifetime_rules.py frontend/experiments/jpeg_decode
+          python -B template_harness/harness/check_house_style.py frontend/experiments/jpeg_decode
+          python -B template_harness/harness/check_lifetime_rules.py frontend/experiments/jpeg_decode
       - name: Fetch exact color source
         run: cmake -DCOLOR_DOWNLOAD_ROOT=.build/jpeg-color-source -P frontend/experiments/jpeg_decode/fetch_color.cmake
       - name: Build independent color package without plugins

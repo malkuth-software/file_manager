@@ -38,11 +38,28 @@ frontend is configured with the same `gui_forms/cmake/llvm22.cmake`, and its
 CMake rejects any compiler other than Clang 22.1.x: SDK C++ objects are not
 ABI compatible across compilers.
 
+**The harness (2026-10-27).** File Manager is a template_harness instance
+(`projects/file_manager.toml` there; template_harness `docs/adopting.md`). The
+generic CI tools (toolchain restore, Linux packages, compiler identity, macOS
+runtimes, compiler-cache upkeep and the house-style checkers) run from the
+harness commit `harness.lock` pins, checked out at `template_harness/` inside
+this root (ignored). Locally:
+
+```sh
+python3 template_harness/harness/lock.py checkout template_harness   # needs the lock's commit
+python3 tools/build_native.py --smoke    # the bootstrap smoke: toolkit, then the frontend model test
+```
+
+Once the `gui_forms` submodule carries its own `harness.lock` (GUI.Forms #408
+and later), both locks must name one commit; CI's harness-checkout step fails
+otherwise. GUI.Forms' own `ci_build.py`, `package_programs.py` and sanitizer
+suppressions are still used from `gui_forms/tools/`.
+
 | Platform | Compiler | Notes |
 |---|---|---|
-| Windows x64 | the provider's published MSYS2 CLANG64 tree (`gui_forms/tools/windows_toolchain.json`) | extract it at its producer root, `D:\a\_temp\msys64`; system header paths enter the hash |
+| Windows x64 | the provider's published MSYS2 CLANG64 tree (`template_harness/harness/windows_toolchain.json`) | extract it at its producer root, `D:\a\_temp\msys64`; system header paths enter the hash |
 | macOS arm64 | Homebrew `llvm@22` and the LLVM 22.1.8 macOS 14 runtime | the runtime arrives in the provider cache archive at `.build/toolchain/llvm-22.1.8-macos14` (`GUI_FORMS_LLVM_RUNTIME`) |
-| Linux x64 | apt.llvm.org `clang-22` (`gui_forms/tools/install_linux_ci_packages.sh toolkit`) | headless tests use `xvfb-run` |
+| Linux x64 | apt.llvm.org `clang-22` (`template_harness/harness/install_linux_ci_packages.sh native`) | headless tests use `xvfb-run` |
 
 A cache hit needs the producer's exact compiler binary, SDK and options;
 `fetch_build_inputs.py` says after restoring whether the `clang` on `PATH` is
