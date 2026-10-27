@@ -1,0 +1,15 @@
+Package: @PACKAGE@
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: @MAINTAINER@
+Section: utils
+Priority: optional
+Homepage: https://github.com/@REPOSITORY@
+Depends: @DEPENDS@
+Description: File Manager, one local place at a time
+ A file manager built on GUI.Forms with protected filesystem authority and
+ inspectable service boundaries.
+ .
+ Installed under @INSTALL_DIR@ with a launcher in /usr/bin. Requires an X11
+ display (XWayland works). Bundled fonts; no host fonts are read. Bundled
+ service executables are not installed as services or started.

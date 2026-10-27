@@ -128,8 +128,19 @@ a draft, uploads, publishes, then checks the tag names the tested commit; a
 rerun completes a draft or leaves a published release alone. Every other
 build carries `0.1-dev`. The version is single-sourced in
 `frontend/CMakeLists.txt` (`FILE_MANAGER_VERSION`) and reaches About, the
-status line, the macOS bundle and the archive name. Releases are archives
-for now; installers come next.
+status line, the macOS bundle and the archive name.
+
+Every package also gets an installer built from the same verified folder
+(`tools/native_installers.py`, after GUI.Forms' `package_programs.py`;
+templates in `packaging/`): a per-user NSIS `-setup.exe` into
+`%LOCALAPPDATA%\Programs\File Manager`, a macOS `.pkg` into
+`/Applications/File Manager`, and a `.deb` into `/opt/file-manager` with a
+`file-manager` launcher and desktop entry. The `.deb` and `.pkg`
+are expanded and every file's hash compared before they are admitted; the
+Windows installer is checked only with `--installer-install-check`, a silent
+install into scratch and uninstall that CI runs (it touches the Start Menu
+and HKCU meanwhile, so local builds leave it off). A release carries each
+platform's archive and installer.
 
 Build outputs remain under `.build/native-<platform>-<arch>/`. The independently
 installed picker package is under `frontend-sdk/lib/cmake/FileManagerDocumentPicker`;

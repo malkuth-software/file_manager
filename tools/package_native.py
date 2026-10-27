@@ -21,6 +21,7 @@ from native_build_support import ROOT, BuildValidation, SourceState, HASH_BUFFER
 from native_build_support import output, run, sdk_fingerprint, record_source_state, sha256, stream_sha256
 from native_macos_package import MacRequirements, mac_closure, mac_minimum_versions
 from collect_diagnostics import stop_owned_process
+from native_installers import InstallerResult, build_installer
 
 # GUI.Forms' package rules: its Windows system-DLL list and the compiler
 # runtime DLLs a statically linked LLVM 22 program must never import.
@@ -153,6 +154,9 @@ def main() -> None:
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--gui-forms-sdk', type=Path, required=True)
     parser.add_argument('--skip-components', action='store_true')
+    parser.add_argument('--installer-install-check', action='store_true',
+                        help='Windows: check the installer by installing into scratch and uninstalling '
+                             '(writes and removes a Start Menu shortcut and an HKCU uninstall key)')
     parser.add_argument('--version', required=True,
                         help='the version the frontend was configured with (build_native.py passes it)')
     args: argparse.Namespace = parser.parse_args()
@@ -351,6 +355,14 @@ def main() -> None:
     checksum_text: str = archive_hash + '  ' + archive.name + '\n'
     checksum_path.write_text(checksum_text, encoding='utf-8')
     print(archive)
+    installer: InstallerResult = build_installer(host, arch, package, distribution, name, version,
+                                                 file_hashes, args.installer_install_check)
+    installer_record: dict[str, str] = {
+        'installer': installer.installer.name, 'sha256': sha256(installer.installer),
+        'archive': archive.name, 'check': installer.check}
+    installer_check_path: Path = build / 'installer-check.json'
+    installer_check_path.write_text(json.dumps(installer_record, indent=2) + '\n', encoding='utf-8')
+    print(installer.installer)
 
 
 if __name__ == '__main__':

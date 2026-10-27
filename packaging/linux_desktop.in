@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=@DISPLAY_NAME@
+Comment=Browse and manage local files
+Exec=@LAUNCHER@
+Categories=Utility;FileManager;
+Terminal=false

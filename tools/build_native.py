@@ -284,6 +284,9 @@ def main() -> None:
     parser.add_argument('--smoke', action='store_true',
                         help='the harness bootstrap smoke build: the toolkit through the provider ci_build.py, '
                              'then only ' + SMOKE_TEST + '; no backend, install or package')
+    parser.add_argument('--installer-install-check', action='store_true',
+                        help='Windows: check the installer by installing it into scratch and uninstalling '
+                             'it (a Start Menu shortcut and HKCU key exist meanwhile); CI passes it')
     parser.add_argument('--release-version', metavar='MAJOR.MINOR.PATCH',
                         help='build and package as this release version instead of ' + DEVELOPMENT_VERSION)
     arguments: argparse.Namespace = parser.parse_args()
@@ -406,6 +409,8 @@ def main() -> None:
     package_options: list[str] = []
     if skip_components:
         package_options.append('--skip-components')
+    if arguments.installer_install_check:
+        package_options.append('--installer-install-check')
     run(sys.executable, ROOT / 'tools/package_native.py', '--build', build,
         '--gui-forms-sdk', sdk, '--version', version, *package_options)
 

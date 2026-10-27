@@ -29,11 +29,13 @@ on:
 permissions:
   contents: read
 concurrency:
-  # A newer push to a branch cancels its older run; a push to main waits for
-  # the previous main run, whose cache saves the next one restores. Manual
-  # diagnostics have their own group and never cancel a pushed commit's checks.
+  # Only pull requests cancel: a newer push to a pull request cancels its older
+  # run. A push to main never cancels the main run in progress, which may be
+  # building or publishing a release; it waits, and the previous run's cache
+  # saves are what it restores. Manual diagnostics have their own group and
+  # never cancel a pushed commit's checks.
   group: native-${{ github.event_name == 'workflow_dispatch' && 'manual-' || '' }}${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   house-style:
     name: House-style spelling and lifetime checks
@@ -66,6 +68,7 @@ jobs:
           python3 -B tools/native_build_tests.py
           python3 -B tools/export_native_sdks_tests.py
           python3 -B tools/publish_release_tests.py
+          python3 -B tools/native_installers_tests.py
   native:
     name: ${{ matrix.platform }}
     needs: house-style
@@ -255,7 +258,10 @@ jobs:
         run: |
           ccache --zero-stats
           scope=""
-          if [ "$FRONTEND_ONLY" = true ]; then scope="--skip-components"; fi
+          # The Windows installer is checked by a silent install into scratch
+          # and uninstall; the runner is disposable (tools/native_installers.py).
+          scope="--installer-install-check"
+          if [ "$FRONTEND_ONLY" = true ]; then scope="$scope --skip-components"; fi
           if [ -n "$FILE_MANAGER_RELEASE_VERSION" ]; then
             scope="$scope --release-version $FILE_MANAGER_RELEASE_VERSION"
           fi
@@ -374,6 +380,9 @@ jobs:
           path: |
             .build/native-${{ matrix.platform }}/dist/*.zip
             .build/native-${{ matrix.platform }}/dist/*.tar.gz
+            .build/native-${{ matrix.platform }}/dist/*-setup.exe
+            .build/native-${{ matrix.platform }}/dist/*.pkg
+            .build/native-${{ matrix.platform }}/dist/*.deb
             .build/native-${{ matrix.platform }}/dist/*.sha256
           if-no-files-found: error
       - name: Upload verified matching native SDKs
@@ -396,6 +405,7 @@ jobs:
             .build/native-${{ matrix.platform }}/backend-consumption.json
             .build/native-${{ matrix.platform }}/gui-forms-consumption.json
             .build/native-${{ matrix.platform }}/package-check.json
+            .build/native-${{ matrix.platform }}/installer-check.json
             .build/native-${{ matrix.platform }}/source-state-*.json
             .build/native-${{ matrix.platform }}/paint-cost/*
             .build/native-${{ matrix.platform }}/focused-cpu/*
