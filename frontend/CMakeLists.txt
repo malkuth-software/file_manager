@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.25)
-project(FileManagerFrontend VERSION 0.0.1 LANGUAGES CXX)
+project(FileManagerFrontend VERSION 0.1.0 LANGUAGES CXX)
+# The application version (About, bundle and package names). Development
+# builds say 0.1-dev; CI's release builds on main pass 0.1.<run> through
+# tools/build_native.py --release-version.
+set(FILE_MANAGER_VERSION "0.1-dev" CACHE STRING "File Manager application version")
 
 include(CMakePackageConfigHelpers)
 
@@ -182,8 +186,12 @@ target_link_libraries(file_manager_application PUBLIC
     GUIForms::Application)
 target_compile_features(file_manager_application PUBLIC cxx_std_20)
 target_compile_definitions(file_manager_application PRIVATE
-    FILE_MANAGER_VERSION="0.001-alpha"
     FILE_MANAGER_GUI_FORMS_MANIFEST_ID="${FILE_MANAGER_MANIFEST_ID}")
+# Only these sources read the version; defining it on them alone keeps a new
+# release number from recompiling (and missing the compiler cache for) the
+# rest of their targets.
+set_property(SOURCE src/application.cpp src/about_view.cpp tests/application_interaction_tests.cpp
+    APPEND PROPERTY COMPILE_DEFINITIONS "FILE_MANAGER_VERSION=\"${FILE_MANAGER_VERSION}\"")
 
 add_executable(file_manager MACOSX_BUNDLE src/main.cpp)
 target_sources(file_manager PRIVATE src/about_view.cpp)
@@ -206,10 +214,16 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 
 if(APPLE)
+# CFBundleShortVersionString takes numbers only: a release's 0.1.<run>, or
+# the project version for a development build.
+set(FILE_MANAGER_BUNDLE_VERSION "${PROJECT_VERSION}")
+if(FILE_MANAGER_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
+    set(FILE_MANAGER_BUNDLE_VERSION "${FILE_MANAGER_VERSION}")
+endif()
 set_target_properties(file_manager PROPERTIES
     MACOSX_BUNDLE_BUNDLE_NAME "File Manager"
     MACOSX_BUNDLE_GUI_IDENTIFIER "local.filemanager.frontend"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${FILE_MANAGER_BUNDLE_VERSION}"
     MACOSX_BUNDLE_BUNDLE_VERSION "1"
     OUTPUT_NAME "File Manager"
     BUILD_RPATH "@executable_path/../Frameworks"

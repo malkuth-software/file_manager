@@ -65,6 +65,7 @@ jobs:
           python3 -B tools/compiler_seed_tests.py
           python3 -B tools/native_build_tests.py
           python3 -B tools/export_native_sdks_tests.py
+          python3 -B tools/publish_release_tests.py
   native:
     name: ${{ matrix.platform }}
     needs: house-style
@@ -98,6 +99,10 @@ jobs:
     env:
       GUI_FORMS_RUNNER: ${{ matrix.runner }}
       FILE_MANAGER_RUNNER: ${{ matrix.runner }}
+      # A push to main builds and packages release v0.1.<run>, which the
+      # publish job releases once the summary passes; any other run packages
+      # the development version (tools/build_native.py DEVELOPMENT_VERSION).
+      FILE_MANAGER_RELEASE_VERSION: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('0.1.{0}', github.run_number) || '' }}
       OBJCXX: clang++
       CC: clang
       CXX: clang++
@@ -251,6 +256,9 @@ jobs:
           ccache --zero-stats
           scope=""
           if [ "$FRONTEND_ONLY" = true ]; then scope="--skip-components"; fi
+          if [ -n "$FILE_MANAGER_RELEASE_VERSION" ]; then
+            scope="$scope --release-version $FILE_MANAGER_RELEASE_VERSION"
+          fi
           if [ "$RUNNER_OS" = Linux ]; then
             # Native lifecycle tests close and reopen the last X11 connection.
             # Keep the test server alive without its automatic last-client reset.
@@ -420,6 +428,37 @@ jobs:
           echo "native (every platform): $NATIVE"
           test "$HOUSE_STYLE" = success
           test "$NATIVE" = success
+  # A push to main whose summary passed publishes the archives every platform
+  # just built and tested as prerelease v0.1.<run> (tools/publish_release.py).
+  # The only job with contents: write.
+  publish:
+    name: Publish the tested prerelease
+    needs: [native, summary]
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.summary.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: file-manager-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: file-manager-*
+          path: dist
+          merge-multiple: true
+      - name: Publish v0.1.${{ github.run_number }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 -B tools/publish_release.py --dist dist
+          --version "0.1.${{ github.run_number }}" --commit "${{ github.sha }}"
+          --repository "${{ github.repository }}"
   # After the saving jobs of a push to main: delete the cache entries each new
   # save superseded, keeping the newest of each family (template_harness
   # harness/ci_cache.py prune). The only job with actions: write.

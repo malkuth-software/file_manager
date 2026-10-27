@@ -3489,9 +3489,9 @@ void test_application_command_truth_across_files_search_and_settings() {
     const bool about_invoked = (*window).perform_semantic_action(
         "fm.application.menu.menu.popup.row.help.about", gui_forms::SemanticAction::press);
     require(help_opened && about_invoked &&
-                (*status_ready).text() == "File Manager · 0.001-alpha development build" &&
+                (*status_ready).text() == "File Manager · " FILE_MANAGER_VERSION &&
                 (*status_summary).text() == "local filesystem authority · GUI.Forms + Web.Forms",
-            "Help About row must publish the exact development version and local authority even "
+            "Help About row must publish the exact build version and local authority even "
             "without a dialog backend; ready=" +
                 (*status_ready).text() + "; summary=" + (*status_summary).text() + "; help=" +
                 std::to_string(help_opened) + "; about=" + std::to_string(about_invoked));

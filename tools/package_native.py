@@ -153,7 +153,10 @@ def main() -> None:
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--gui-forms-sdk', type=Path, required=True)
     parser.add_argument('--skip-components', action='store_true')
+    parser.add_argument('--version', required=True,
+                        help='the version the frontend was configured with (build_native.py passes it)')
     args: argparse.Namespace = parser.parse_args()
+    version: str = args.version
     build: Path = args.build.resolve()
     sdk: Path = args.gui_forms_sdk.resolve()
     configuration: HostConfiguration = host_configuration()
@@ -271,7 +274,7 @@ def main() -> None:
     relative_executable: Path = executable.relative_to(package)
     receipt_executable: str = relative_executable.as_posix()
     receipt: dict[str, object] = {
-        'product': 'File Manager', 'version': '0.001-alpha', 'source_revision': revision,
+        'product': 'File Manager', 'version': version, 'source_revision': revision,
         'source_dirty': dirty, 'platform': host, 'architecture': arch,
         'source_status_porcelain': source_state['status_porcelain'][:40],
         'source_status_path_count': len(source_state['status_porcelain']),
@@ -291,7 +294,7 @@ def main() -> None:
     }
     readme_path: Path = package / 'README.txt'
     readme_path.write_text(
-        'File Manager 0.001-alpha development build\n\n'
+        'File Manager ' + version + '\n\n'
         'Extract the complete folder. Open File Manager.app on macOS, File Manager.exe on Windows, '
         'or ./File Manager on Linux. New Folder, same-parent Rename and their one-step Undo '
         'are available without search services or quarantine setup. Copy, Move and Delete '
@@ -333,7 +336,7 @@ def main() -> None:
     receipt_text: str = json.dumps(receipt, indent=2) + '\n'
     receipt_path.write_text(receipt_text, encoding='utf-8')
     check_path.write_text(receipt_text, encoding='utf-8')
-    name = f'file-manager-0.001-alpha-{host}-{arch}-{revision[:12]}'
+    name = f'file-manager-{version}-{host}-{arch}-{revision[:12]}'
     if dirty:
         name += '-dirty'
     archive_format: str = 'gztar'

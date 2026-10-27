@@ -21,6 +21,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import sys
 from types import ModuleType
@@ -44,6 +45,10 @@ TOOLCHAIN_FILE: Path = ROOT / 'gui_forms/cmake/llvm22.cmake'
 # The one frontend test the bootstrap's smoke build runs.
 SMOKE_TEST: str = 'file_manager_frontend_model_tests'
 # The lockstep record's layout (harness/lockstep.py); another schema is refused.
+# The version a development build carries (frontend/CMakeLists.txt's default);
+# CI's release builds on main pass --release-version 0.1.<run>.
+DEVELOPMENT_VERSION: str = '0.1-dev'
+RELEASE_VERSION_PATTERN: str = r'[0-9]+\.[0-9]+\.[0-9]+'
 LOCKSTEP_SCHEMA: int = 1
 LOCKSTEP_FIELDS: tuple[str, ...] = ('commit', 'target', 'features', 'compiler', 'prefix', 'package_dir',
                                     'source', 'toolchain_file', 'font_dir', 'llvm_runtime', 'lang')
@@ -279,6 +284,8 @@ def main() -> None:
     parser.add_argument('--smoke', action='store_true',
                         help='the harness bootstrap smoke build: the toolkit through the provider ci_build.py, '
                              'then only ' + SMOKE_TEST + '; no backend, install or package')
+    parser.add_argument('--release-version', metavar='MAJOR.MINOR.PATCH',
+                        help='build and package as this release version instead of ' + DEVELOPMENT_VERSION)
     arguments: argparse.Namespace = parser.parse_args()
     jobs: int = arguments.jobs
     test_jobs: int = arguments.test_jobs
@@ -294,6 +301,11 @@ def main() -> None:
     if smoke:
         # The smoke build needs no backend: it packages nothing.
         skip_components = True
+    version: str = DEVELOPMENT_VERSION
+    if arguments.release_version is not None:
+        if re.fullmatch(RELEASE_VERSION_PATTERN, arguments.release_version) is None:
+            parser.error('--release-version must be MAJOR.MINOR.PATCH, not ' + arguments.release_version)
+        version = arguments.release_version
     if lockstep_record is not None and supplied_sdk is not None:
         parser.error('--gui-forms-lockstep names its own SDK; leave out --gui-forms-sdk')
     # CI's harness-checkout sets these; a local run gets the same identity
@@ -358,7 +370,7 @@ def main() -> None:
     manifest.write_text(manifest_text, encoding='utf-8')
     frontend: Path = build / 'frontend'
     sdk_identity: str = sdk_fingerprint(sdk)
-    configure_frontend(toolkit, frontend, sdk, build, manifest, [])
+    configure_frontend(toolkit, frontend, sdk, build, manifest, ['-DFILE_MANAGER_VERSION=' + version])
     sdk_stamp: Path = frontend / 'sdk-fingerprint.txt'
     previous_identity: str = ''
     if sdk_stamp.is_file():
@@ -395,7 +407,7 @@ def main() -> None:
     if skip_components:
         package_options.append('--skip-components')
     run(sys.executable, ROOT / 'tools/package_native.py', '--build', build,
-        '--gui-forms-sdk', sdk, *package_options)
+        '--gui-forms-sdk', sdk, '--version', version, *package_options)
 
 
 if __name__ == '__main__':
