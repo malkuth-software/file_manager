@@ -246,8 +246,17 @@ def main() -> None:
     if host == 'windows':
         windows_imports = check_windows_imports(package)
     if host == 'linux':
-        dependencies: str = output('ldd', executable)
+        # As GUI.Forms' packager does: each packaged library finds its
+        # siblings (Application needs Threading) in its own directory, not
+        # only through the executable's RUNPATH, which does not apply to a
+        # library's own dependencies.
+        patchelf: str | None = shutil.which('patchelf')
+        if patchelf is None:
+            raise RuntimeError('patchelf is needed to give packaged GUI.Forms libraries an $ORIGIN RUNPATH')
         library: Path
+        for library in sorted(package.glob('libgui_forms_*.so*')):
+            run(patchelf, '--set-rpath', '$ORIGIN', library)
+        dependencies: str = output('ldd', executable)
         for library in sorted(package.glob('libgui_forms_*.so*')):
             library_dependencies: str = output('ldd', library)
             dependencies += '\n' + library.name + ':\n' + library_dependencies
