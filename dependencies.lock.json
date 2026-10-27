@@ -11,12 +11,12 @@
   },
   "gui_forms": {
     "repository": "malkuth-software/gui_forms",
-    "revision": "2fe26d8d1a830e82a1db5781c6e8a05c2a0df6d0",
-    "release": "build-2fe26d8d1a830e82a1db5781c6e8a05c2a0df6d0",
+    "revision": "8e28866639687cf218cff20154920a79b0fe924f",
+    "release": "build-8e28866639687cf218cff20154920a79b0fe924f",
     "sha256": {
-      "macos-arm64": "70b7eff0f031cc71d0aece14011f5e3e7eacb835f9f44da1c6b87735467a1d6d",
-      "linux-x64": "c5022d7da9559f4fdf061c3ffe32680c02f4054efb7725d053a02946b7b54b4d",
-      "windows-x64": "6dd8e52488b247ca822b930819cb9f54786ae1579262625c69b2a65c800a3657"
+      "macos-arm64": "f9d434aeb86aaae639461c2e47f65bb2872f991cb40d6366510c2a7eb4a8079a",
+      "linux-x64": "0ce5913dbe0f56668ae92f9f5956c78094596774643c3c27e467be4192717dfa",
+      "windows-x64": "8daf6985595b87c2a987d951a6287cd6308491be80c1899d092e67e6156d434c"
     }
   }
 }

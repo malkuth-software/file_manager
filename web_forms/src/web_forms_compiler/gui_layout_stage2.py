@@ -735,18 +735,18 @@ def generate_gui_layouts(
         "#pragma once",
         "",
         "#include <cstddef>",
-        '#include "gui_forms/controls/scrollable_control/container_control/flow_layout_panel/flow_layout_panel.hpp"',
-        '#include "gui_forms/controls/scrollable_control/container_control/table_layout_panel/table_layout_panel.hpp"',
+        '#include "gui_forms/controls/scrollable_control/container_control/flow_layout_panel_compat/flow_layout_panel_compat.hpp"',
+        '#include "gui_forms/controls/scrollable_control/container_control/table_layout_panel_compat/table_layout_panel_compat.hpp"',
         "",
         f"namespace {namespace} {{",
         "",
         "bool has_native_flow_layout(std::size_t node_index) noexcept;",
-        "void apply_native_flow_layout(std::size_t node_index, gui_forms::FlowLayoutPanel& panel);",
+        "void apply_native_flow_layout(std::size_t node_index, gui_forms::FlowLayoutPanelCompat& panel);",
         "double native_flex_grow(std::size_t node_index) noexcept;",
         "bool has_native_grid_layout(std::size_t node_index) noexcept;",
-        "void apply_native_grid_layout(std::size_t node_index, gui_forms::TableLayoutPanel& panel);",
+        "void apply_native_grid_layout(std::size_t node_index, gui_forms::TableLayoutPanelCompat& panel);",
         "bool has_native_grid_cell(std::size_t parent_node_index, std::size_t child_node_index) noexcept;",
-        "void apply_native_grid_cell(std::size_t parent_node_index, std::size_t child_node_index, gui_forms::TableLayoutPanel& panel, gui_forms::Control& child);",
+        "void apply_native_grid_cell(std::size_t parent_node_index, std::size_t child_node_index, gui_forms::TableLayoutPanelCompat& panel, gui_forms::Control& child);",
         "bool has_native_box_geometry(std::size_t node_index) noexcept;",
         "void apply_native_box_geometry(std::size_t node_index, gui_forms::Control& control);",
         "bool native_box_fills_parent_width(std::size_t node_index) noexcept;",
@@ -776,7 +776,7 @@ def generate_gui_layouts(
         [
             "    default:", "        return false;", "    }", "}", "",
             "void apply_native_flow_layout(",
-            "    std::size_t node_index, gui_forms::FlowLayoutPanel& panel) {",
+            "    std::size_t node_index, gui_forms::FlowLayoutPanelCompat& panel) {",
             "    switch (node_index) {",
         ]
     )
@@ -828,7 +828,7 @@ def generate_gui_layouts(
         [
             "    default:", "        return false;", "    }", "}", "",
             "void apply_native_grid_layout(",
-            "    std::size_t node_index, gui_forms::TableLayoutPanel& panel) {",
+            "    std::size_t node_index, gui_forms::TableLayoutPanelCompat& panel) {",
             "    static_cast<void>(panel);",
             "    switch (node_index) {",
         ]
@@ -882,7 +882,7 @@ def generate_gui_layouts(
         [
             "void apply_native_grid_cell(",
             "    std::size_t parent_node_index, std::size_t child_node_index,",
-            "    gui_forms::TableLayoutPanel& panel, gui_forms::Control& child) {",
+            "    gui_forms::TableLayoutPanelCompat& panel, gui_forms::Control& child) {",
             "    static_cast<void>(child_node_index);",
             "    static_cast<void>(panel);",
             "    static_cast<void>(child);",

@@ -192,7 +192,8 @@ class LockstepRecordTests(unittest.TestCase):
             'package_dir': str(self.prefix / 'lib/cmake/GUIForms'), 'source': str(self.source),
             'toolchain_file': str(self.source / 'cmake/llvm22.cmake'),
             'font_dir': str(self.prefix / 'share/GUIForms/fonts'), 'llvm_runtime': '',
-            'ccache_dir': str(root / 'ccache'), 'ccache_basedir': str(root), 'lang': 'en_US.UTF-8'}
+            'ccache_dir': str(root / 'ccache'), 'ccache_basedir': str(root), 'lang': 'en_US.UTF-8',
+            'harness': 'f' * 40}
         self.record_path: Path = root / 'current-windows-x64.json'
         self.lang: str = ''
 
@@ -216,13 +217,16 @@ class LockstepRecordTests(unittest.TestCase):
         self.assertEqual(toolkit.source, self.source)
         self.assertEqual(toolkit.font_dir, self.prefix / 'share/GUIForms/fonts')
         self.assertEqual(self.lang, 'en_US.UTF-8')
+        self.assertIn('harness ' + 'f' * 40, toolkit.description)
+        del self.record['harness']
+        self.assertIn('harness none', self.read().description)
 
     def test_refused_records(self) -> None:
         refusals: list[tuple[str, object]] = [
             ('schema', 2), ('target', 'linux-x64'), ('features', 'core'), ('features', None),
             ('commit', '0' * 40),
             ('package_dir', str(self.prefix / 'lib')), ('compiler', str(self.other_compiler)),
-            ('font_dir', None)]
+            ('font_dir', None), ('harness', 7)]
         field: str
         value: object
         for field, value in refusals:
