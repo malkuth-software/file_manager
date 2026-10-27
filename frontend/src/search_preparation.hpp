@@ -1,0 +1,89 @@
+#pragma once
+
+#include "file_manager/filesystem_model.hpp"
+#include "fileman_orchestrator/client.hpp"
+
+#include <memory>
+
+namespace file_manager {
+
+// Exact arguments submitted by a worker, shared once per returned page. These
+// owned values are observations of the request, not current control contents.
+struct SearchRequestContext final {
+    std::string root_id{};
+    std::optional<std::string> relative_path{};
+    std::string text{};
+    std::vector<fileman::orchestrator::SearchExactFilter> exact_filters{};
+    bool descendants{true};
+    std::uint32_t maximum_results{};
+    std::optional<fileman::orchestrator::SearchCursorInfo> incoming_cursor{};
+};
+
+// Shared by rows from one page. Large source/scan strings are stored once;
+// the last displayed row releases them. Page and row generations stay distinct.
+struct SearchPageSource final {
+    std::string lane{};
+    std::optional<std::string> scan_id{};
+    std::optional<std::uint64_t> generation{};
+    std::shared_ptr<const SearchRequestContext> request{};
+};
+
+struct SearchResultSource final {
+    fileman::orchestrator::SearchResultInfo record{};
+    std::shared_ptr<const SearchPageSource> page{};
+};
+
+// Presentation of provider claims only. It never establishes current identity,
+// compares differently calibrated scores, or changes result order.
+struct SearchMatchPresentation final {
+    std::string source_label{};
+    std::string source_badge{};
+    std::string generation_detail{};
+    std::string match_summary{};
+};
+
+[[nodiscard]] SearchMatchPresentation describe_search_match(const SearchResultSource& source);
+
+struct PreparedSearchEntry final {
+    DirectoryEntry entry{};
+    SearchResultSource source{};
+};
+
+// Owned worker-to-UI value. Entries are path observations made during preparation,
+// not proof that a cached provider match still has the same identity or metadata.
+// Ordinary open/mutation operations must continue their own identity revalidation.
+struct PreparedSearchPage final {
+    fileman::orchestrator::SearchPageInfo page{};
+    std::vector<PreparedSearchEntry> entries{};
+    std::size_t rejected{};
+    bool cancelled{};
+};
+
+// UI-owned coverage for the accumulated result set. Gaps from earlier pages
+// survive append; a replacement query resets them. No provider strings or
+// response-buffer borrows are retained here.
+struct SearchCoverageSummary final {
+    bool stale{};
+    bool unavailable{};
+    bool warnings{};
+    bool unreported{};
+    bool omitted{};
+
+    void observe(const fileman::orchestrator::SearchPageInfo& page,
+                 std::size_t rejected, bool append);
+    [[nodiscard]] std::string describe(const fileman::orchestrator::SearchPageInfo& page) const;
+    [[nodiscard]] std::string result_status(std::size_t count, bool criteria,
+        const fileman::orchestrator::SearchPageInfo& page) const;
+};
+
+// Root and cancellation target are borrowed only during this synchronous call.
+// No GUI object is accessed. Cancellation publishes an empty cancelled value.
+// A native filesystem call already in progress finishes before the next check.
+// The 500-result ceiling matches the frontend's admitted page-size setting.
+[[nodiscard]] PreparedSearchPage prepare_search_page(
+    const std::filesystem::path& canonical_root,
+    fileman::orchestrator::SearchPageInfo page,
+    const CancellationCheck& cancelled = {},
+    std::shared_ptr<const SearchRequestContext> request = {});
+
+} // namespace file_manager

@@ -1,0 +1,102 @@
+# File Manager
+
+The pre-architecture workspace for a fast, local-first, cross-platform file
+manager: visually descended from classic Windows Explorer, NeXTSTEP, and
+Watercolor, with a local CLI surface and future capability-scoped plugin AI.
+
+The parent product remains in **pre-plan** where decisions are unresolved, but
+its repository topology, engine spine, Orchestrator integration authority, and
+negotiated delivery order are now accepted. The unified suite/distribution is
+named **Malkuth** under ADR-012; File Manager remains the application name. The
+work in [`planning/`](planning/) defines the remaining decisions, evidence,
+exclusions, and component gates.
+
+Start with:
+
+- [`planning/README.md`](planning/README.md) — current phase and artifact map;
+- [`planning/PROGRAM_MAP.md`](planning/PROGRAM_MAP.md) — component ownership,
+  current permissions, contract authority, and build order;
+- [`malkuth/`](malkuth/) — Curious/Concise/Friendly mission, release horizons,
+  documentation, installer, website, and release-manifest planning;
+- [`planning/PREPLAN_CHARTER.md`](planning/PREPLAN_CHARTER.md) — the plan for
+  producing the actual project plan;
+- [`planning/EVIDENCE_REGISTER.md`](planning/EVIDENCE_REGISTER.md) — Zeta
+  search research, BFFT research discipline, and Modern.Forms reconnaissance;
+- [`planning/ARCHITECTURE_INPUTS.md`](planning/ARCHITECTURE_INPUTS.md) — recorded
+  constraints and positive product direction from the architect;
+- [`planning/SURFACE_PIPELINE.md`](planning/SURFACE_PIPELINE.md) — native retained
+  UI pipeline hypothesis, including a possible Modern.Forms compatibility layer;
+- [`planning/QUESTION_ATLAS.md`](planning/QUESTION_ATLAS.md) — numbered
+  anti-requirement and architecture questions.
+- [`frontend/planning/visual/ceremonial-software-atlas.html`](frontend/planning/visual/ceremonial-software-atlas.html)
+  — visible accept/distill/reject board for installer animation, OOBE, and
+  Visual Studio/professional-software aesthetics from 2000–2012.
+- [`frontend/planning/visual/material-depth-atlas.html`](frontend/planning/visual/material-depth-atlas.html)
+  — visible static board for relief, instruments, object icons, illustrated
+  utility surfaces, and frozen screensaver-pattern families.
+- [`planning/gui_forms/GUI_FORMS_BACKEND_DECISION_MAP.md`](planning/gui_forms/GUI_FORMS_BACKEND_DECISION_MAP.md)
+  — the technical decision interview for the independent GUI.Forms framework.
+- [`planning/gui_forms/GUI_FORMS_INTERVIEW_LEDGER.md`](planning/gui_forms/GUI_FORMS_INTERVIEW_LEDGER.md)
+  — GIVEN GUI.Forms constraints, candidate tradeoffs, and the deeper host,
+  renderer, layout, and behavior interview; formal selection comes later.
+- [`planning/gui_forms/GUI_FORMS_RESOURCES_AND_CONFIGURATION.md`](planning/gui_forms/GUI_FORMS_RESOURCES_AND_CONFIGURATION.md)
+  — compiled theme/language packs, PNG policy, safe fallbacks, and mutable
+  runtime-configuration candidates.
+
+The fetched Modern.Forms reference is pinned in
+[`third_party/README.md`](third_party/README.md).
+
+## Source and build dependencies
+
+Clone with `git clone --recurse-submodules`, or run
+`git submodule update --init --recursive` after pulling. GUI.Forms and backend source are pinned submodules
+owned by [GUI.Forms](https://github.com/falseywinchnet/gui_forms) and
+[backend](https://github.com/falseywinchnet/backend). Make provider changes in
+those repositories; update their pins here through a PR against main.
+
+File Manager compiles pinned GUI.Forms source using an optional provider ccache
+seed. It consumes exact tested backend binaries instead of rebuilding Go/Rust.
+Run `python3 tools/fetch_build_inputs.py --platform macos-arm64` (or `linux-x64`,
+`windows-x64`) before `python3 tools/build_native.py --jobs 2`. GitHub CLI is
+required for fetching. The lock verifies backend archive and executable hashes.
+See [ADR-021](decisions/ADR-021-COMPONENT-REPOSITORIES-AND-BUILD-REUSE.md).
+
+## Program repositories
+
+- [`gui_forms/`](gui_forms/) — independently buildable retained C++ GUI
+  framework, currently advancing first toward a semicomplete snapshot.
+- [`backend/engine/`](backend/engine/) — purpose-built, standalone Go catalogue/index/search
+  service with a narrow versioned API, mandatory sandbox, exact-identity oracle,
+  crash/corruption testing, and comparison benchmarks against mature stores.
+- [`kolmogrov/`](kolmogrov/) — independent formal and experimental program for
+  ConeDAG successors, practical algorithmic-information measures, exhaustive
+  breakdown, and fixed-width multi-channel perceptual hashes. It pursues proof
+  closure and adversarial measurement before production promotion.
+- [`backend/orchestrator/`](backend/orchestrator/) — the active user-scoped Rust Orchestrator:
+  canonical integration authority, contract and availability registry, CLI,
+  and future owner of hives, settings, handlers, commands, platform policy, and
+  hostile plugin supervision. It advances headlessly toward Core 1.0 without a
+  GUI.Forms dependency.
+- [`frontend/`](frontend/) — the C++ end-user application. Frontend 001 begins
+  after Orchestrator Core 1.0, the named GUI.Forms go-ahead, and explicit
+  architect direction. Engine and later providers retain separate gates.
+- [`paint/`](paint/) — interview-first planning for the future classic direct
+  image editor and alpha clipart/composite workflow; implementation gated.
+- [`text_editor/`](text_editor/) — interview-first planning for the future
+  tabless plain-text/configuration editor; implementation gated.
+- [`games/`](games/) — planning-only deterministic game collection and
+  GUI.Forms dogfood program; implementation gated.
+- [`lexicon/`](lexicon/) — planning-only local dictionary/corpus provider and
+  Shakespeare-first Crossword source; implementation gated.
+- [`malkuth/`](malkuth/) — planning-only suite release program for 1.0/2.0/3.0,
+  cross-platform installers, online documentation, and polished public website.
+- [`plugin_runtime/`](plugin_runtime/) — frozen earlier plugin-containment
+  research retained as input to Orchestrator, not a parallel runtime implementation.
+
+Each directory contains its own `AGENTS.md`, build boundary, ledgers, acceptance
+gates, and a handoff prompt suitable for a dedicated Codex task.
+
+Accepted architecture records are indexed in
+[`decisions/README.md`](decisions/README.md). Engine workers must also read both
+[`engine/docs/ARCHITECT_HANDOFF_001.md`](engine/docs/ARCHITECT_HANDOFF_001.md)
+and [`engine/docs/ARCHITECT_HANDOFF_002.md`](engine/docs/ARCHITECT_HANDOFF_002.md).
