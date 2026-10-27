@@ -6,6 +6,12 @@ it defines (gui_forms/ beside .build/native-<platform>/gui-forms/), so every
 compilation has the provider CI's configure options, toolchain file and paths,
 and a restored provider cache can hit. The frontend is configured with the
 same cmake/llvm22.cmake toolchain file against the installed SDK.
+
+--gui-forms-lockstep names the machine's lockstep record instead
+(D:/malkuth/cache/lockstep/current-<target>.json, written by template_harness
+harness/lockstep.py): GUI.Forms is then not built here. Its installed prefix,
+source clone, toolchain file and fonts come from the record, which names one
+GUI.Forms commit for every product built on this machine.
 """
 from __future__ import annotations
 
@@ -27,17 +33,43 @@ PROVIDER_TOOLS: Path = ROOT / 'gui_forms/tools'
 # The pinned harness (harness.lock), checked out inside this workspace root by
 # template_harness/harness/lock.py or CI's harness-checkout step.
 HARNESS_TOOLS: Path = ROOT / 'template_harness/harness'
+# The submodule's toolchain file; the default ToolkitSource and the CI SDK export use it.
 TOOLCHAIN_FILE: Path = ROOT / 'gui_forms/cmake/llvm22.cmake'
 # The one frontend test the bootstrap's smoke build runs.
 SMOKE_TEST: str = 'file_manager_frontend_model_tests'
-# Provider sanitizer leak baseline (macOS framework allocations; see its building docs).
-LEAK_SUPPRESSIONS: Path = PROVIDER_TOOLS / 'sanitizer/lsan.supp'
+# The lockstep record's layout (harness/lockstep.py); another schema is refused.
+LOCKSTEP_SCHEMA: int = 1
+LOCKSTEP_FIELDS: tuple[str, ...] = ('commit', 'target', 'features', 'compiler', 'prefix', 'package_dir',
+                                    'source', 'toolchain_file', 'font_dir', 'llvm_runtime', 'lang')
+# The lockstep feature set File Manager links: its native host, CPU Skia and
+# the text stack, which only the whole toolkit ("all") provides.
+LOCKSTEP_FEATURES: str = 'all'
 
 
 @dataclass(frozen=True)
 class HostConfiguration:
     host: str
     architecture: str
+
+
+@dataclass(frozen=True)
+class ToolkitSource:
+    """Where the GUI.Forms pieces of a frontend build come from.
+
+    `source` is a GUI.Forms source tree: its tools/ci_build.py supplies the
+    configure record and sanitizer options, and tools/sanitizer/lsan.supp the
+    leak baseline. `sdk` is an installed prefix to build against, or None to
+    build one from the submodule with ci_build.py. `revision` is the GUI.Forms
+    commit the consumption manifest records. `llvm_runtime` is the macOS
+    runtime prefix the record names, empty when the environment decides.
+    """
+    source: Path
+    toolchain_file: Path
+    font_dir: Path
+    revision: str
+    sdk: Path | None
+    llvm_runtime: str
+    description: str
 
 
 def host_configuration() -> HostConfiguration:
@@ -57,9 +89,68 @@ def host_configuration() -> HostConfiguration:
     return result
 
 
-def provider_build_module() -> ModuleType:
-    """Import the pinned provider's ci_build.py; its configure and sanitizer rules stay single-sourced."""
-    location: str = str(PROVIDER_TOOLS)
+def submodule_source(supplied_sdk: Path | None) -> ToolkitSource:
+    """The pinned gui_forms/ submodule, and an SDK built from it unless one is supplied."""
+    revision: str = git_output('-C', str(ROOT / 'gui_forms'), 'rev-parse', 'HEAD')
+    description: str = 'provider ci_build.py: native build, CTest and installed reference examples passed'
+    sdk: Path | None = None
+    if supplied_sdk is not None:
+        sdk = supplied_sdk.resolve()
+        description = 'externally supplied'
+    result: ToolkitSource = ToolkitSource(
+        source=ROOT / 'gui_forms', toolchain_file=TOOLCHAIN_FILE, font_dir=ROOT / 'gui_forms/assets/fonts',
+        revision=revision, sdk=sdk, llvm_runtime='', description=description)
+    return result
+
+
+def lockstep_source(record_path: Path, configuration: HostConfiguration) -> ToolkitSource:
+    """Read and check the lockstep record; nothing is changed if it is refused.
+
+    The record must be schema 1 for this host's target and the whole feature
+    set (features is part of the lockstep key), its source clone must
+    be at the recorded commit, and the clang on PATH must be the recorded
+    compiler, since SDK C++ objects are not ABI compatible across compilers.
+    On success LANG is set to the recorded locale, which ccache hashes.
+    """
+    text: str = record_path.read_text(encoding='utf-8')
+    record: dict[str, object] = json.loads(text)
+    if record.get('schema') != LOCKSTEP_SCHEMA:
+        raise RuntimeError(f'{record_path}: lockstep schema {record.get("schema")!r}, expected {LOCKSTEP_SCHEMA}')
+    values: dict[str, str] = {}
+    field: str
+    for field in LOCKSTEP_FIELDS:
+        value: object = record.get(field)
+        if not isinstance(value, str):
+            raise RuntimeError(f'{record_path}: field {field} is missing or not a string')
+        values[field] = value
+    target: str = configuration.host + '-' + configuration.architecture
+    if values['target'] != target:
+        raise RuntimeError(f'{record_path}: lockstep target {values["target"]}, this host is {target}')
+    if values['features'] != LOCKSTEP_FEATURES:
+        raise RuntimeError(f'{record_path}: lockstep features {values["features"]!r}; '
+                           f'File Manager needs {LOCKSTEP_FEATURES!r}')
+    source: Path = Path(values['source'])
+    prefix: Path = Path(values['prefix'])
+    if Path(values['package_dir']) != prefix / 'lib/cmake/GUIForms':
+        raise RuntimeError(f'{record_path}: package_dir is not <prefix>/lib/cmake/GUIForms')
+    head: str = git_output('-C', str(source), 'rev-parse', 'HEAD')
+    if head != values['commit']:
+        raise RuntimeError(f'{source} is at {head}, but the lockstep record names {values["commit"]}')
+    located: str | None = shutil.which('clang')
+    if located is None or not os.path.samefile(located, values['compiler']):
+        raise RuntimeError(f'clang on PATH ({located}) is not the lockstep compiler {values["compiler"]}')
+    if values['lang']:
+        os.environ['LANG'] = values['lang']
+    result: ToolkitSource = ToolkitSource(
+        source=source, toolchain_file=Path(values['toolchain_file']), font_dir=Path(values['font_dir']),
+        revision=values['commit'], sdk=prefix, llvm_runtime=values['llvm_runtime'],
+        description='lockstep ' + values['commit'] + ' ' + values['features'] + ' (' + str(record_path) + ')')
+    return result
+
+
+def provider_build_module(toolkit: ToolkitSource) -> ModuleType:
+    """Import the toolkit source's ci_build.py; its configure and sanitizer rules stay single-sourced."""
+    location: str = str(toolkit.source / 'tools')
     if location not in sys.path:
         sys.path.insert(0, location)
     import ci_build
@@ -67,16 +158,19 @@ def provider_build_module() -> ModuleType:
     return module
 
 
-def select_macos_runtime(host: str) -> None:
+def select_macos_runtime(host: str, toolkit: ToolkitSource) -> None:
     """Point cmake/llvm22.cmake at the LLVM 22.1.8 macOS 14 runtime and verify it byte for byte.
 
     The provider cache archive carries the runtime at MACOS_RUNTIME_LAYOUT
-    (tools/fetch_build_inputs.py restores it). An explicit GUI_FORMS_LLVM_RUNTIME wins.
+    (tools/fetch_build_inputs.py restores it). A lockstep record's runtime wins,
+    then an explicit GUI_FORMS_LLVM_RUNTIME.
     FILE_MANAGER_LLVM_RUNTIME, the harness's name for this project, is set to
     the same prefix; GUI.Forms' toolchain file reads GUI_FORMS_LLVM_RUNTIME.
     """
     if host != 'macos':
         return
+    if toolkit.llvm_runtime:
+        os.environ['GUI_FORMS_LLVM_RUNTIME'] = toolkit.llvm_runtime
     if not os.environ.get('GUI_FORMS_LLVM_RUNTIME'):
         os.environ['GUI_FORMS_LLVM_RUNTIME'] = str(ROOT / MACOS_RUNTIME_LAYOUT)
     runtime: str = os.environ['GUI_FORMS_LLVM_RUNTIME']
@@ -89,7 +183,7 @@ def build_toolkit(jobs: int, test_jobs: int) -> None:
     run(sys.executable, PROVIDER_TOOLS / 'ci_build.py', '--jobs', jobs, '--test-jobs', test_jobs)
 
 
-def toolchain_identity() -> dict[str, str]:
+def toolchain_identity(toolkit: ToolkitSource) -> dict[str, str]:
     """The compiler that built this consumer; a cache hit needs this exact binary."""
     version_text: str = output('clang', '--version')
     first_line: str = version_text.splitlines()[0]
@@ -98,17 +192,17 @@ def toolchain_identity() -> dict[str, str]:
         raise RuntimeError('clang is missing from PATH')
     compiler_path: Path = Path(located)
     identity: dict[str, str] = {'clang_version': first_line, 'clang_sha256': sha256(compiler_path),
-                                'toolchain_file': 'gui_forms/cmake/llvm22.cmake'}
+                                'toolchain_file': toolkit.toolchain_file.as_posix()}
     return identity
 
 
-def configure_frontend(frontend: Path, sdk: Path, build: Path, manifest: Path,
+def configure_frontend(toolkit: ToolkitSource, frontend: Path, sdk: Path, build: Path, manifest: Path,
                        extra_options: list[str]) -> None:
     """Configure through the provider's configure record, which skips an unchanged reconfigure."""
-    ci_build: ModuleType = provider_build_module()
+    ci_build: ModuleType = provider_build_module(toolkit)
     configure: list[str] = [
         'cmake', '-S', str(ROOT / 'frontend'), '-B', str(frontend), '-G', 'Ninja',
-        '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_TOOLCHAIN_FILE=' + str(TOOLCHAIN_FILE),
+        '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_TOOLCHAIN_FILE=' + str(toolkit.toolchain_file),
         '-DCMAKE_NO_SYSTEM_FROM_IMPORTED=ON', '-DCMAKE_PREFIX_PATH=' + str(sdk),
         '-DGUIForms_DIR=' + str(sdk / 'lib/cmake/GUIForms'),
         '-DFILE_MANAGER_GUI_FORMS_MANIFEST=' + str(manifest),
@@ -117,17 +211,20 @@ def configure_frontend(frontend: Path, sdk: Path, build: Path, manifest: Path,
     ci_build.configure_tree(frontend, configure)
 
 
-def build_sanitized_frontend(host: str, build: Path, sdk: Path, manifest: Path, jobs: int, test_jobs: int) -> None:
+def build_sanitized_frontend(toolkit: ToolkitSource, host: str, build: Path, sdk: Path, manifest: Path,
+                             jobs: int, test_jobs: int) -> None:
     """Build and test the frontend under the provider's sanitizer profile; install and package nothing.
 
     Only File Manager code is instrumented: the Release SDK is linked
     unchanged, as provider CI links its prebuilt Skia. Every report stops
     its test. The Windows MinGW runtime has no LeakSanitizer.
     """
-    ci_build: ModuleType = provider_build_module()
+    ci_build: ModuleType = provider_build_module(toolkit)
+    # Provider sanitizer leak baseline (macOS framework allocations; see its building docs).
+    leak_suppressions: Path = toolkit.source / 'tools/sanitizer/lsan.supp'
     options: list[str]
     environment: dict[str, str]
-    options, environment = ci_build.sanitizer_options(host, LEAK_SUPPRESSIONS, 'lines')
+    options, environment = ci_build.sanitizer_options(host, leak_suppressions, 'lines')
     os.environ.update(environment)
     # The MinGW sanitizer runtime is a DLL; this tree is tested, never packaged.
     options.append('-DFILE_MANAGER_CHECK_RUNTIME_IMPORTS=OFF')
@@ -139,9 +236,9 @@ def build_sanitized_frontend(host: str, build: Path, sdk: Path, manifest: Path, 
         # packaged programs keep the default (notes:planning/GUI_FORMS_0_2_CONSUMPTION_2026-10-26.md).
         options.append('-DCMAKE_EXE_LINKER_FLAGS=' + ci_build.SANITIZER_LINK_FLAGS + ' -Wl,--stack,8388608')
     frontend: Path = build / 'frontend-sanitize'
-    configure_frontend(frontend, sdk, build, manifest, options)
+    configure_frontend(toolkit, frontend, sdk, build, manifest, options)
     run('cmake', '--build', frontend, '--parallel', jobs)
-    os.environ['GUI_FORMS_FONT_DIR'] = str(ROOT / 'gui_forms/assets/fonts')
+    os.environ['GUI_FORMS_FONT_DIR'] = str(toolkit.font_dir)
     run('ctest', '--test-dir', frontend, '--output-on-failure', '--timeout', '900', '--parallel', test_jobs)
 
 
@@ -150,6 +247,10 @@ def main() -> None:
     parser.add_argument('--jobs', type=int, default=2)
     parser.add_argument('--test-jobs', type=int, default=1, help='tests ctest runs at once (default 1)')
     parser.add_argument('--gui-forms-sdk', type=Path, help='Reuse an already tested native SDK')
+    parser.add_argument('--gui-forms-lockstep', type=Path, metavar='RECORD',
+                        help="build against the machine's lockstep GUI.Forms "
+                             '(D:/malkuth/cache/lockstep/current-<target>.json): prefix, source clone, toolchain '
+                             'file and fonts from the record; GUI.Forms is not built here')
     parser.add_argument('--backend-bundle', type=Path, help='Pinned backend archive; defaults to .build/inputs/<platform>')
     parser.add_argument('--skip-components', action='store_true', help='Explicit frontend-only development package')
     parser.add_argument('--sanitize', action='store_true',
@@ -162,6 +263,7 @@ def main() -> None:
     jobs: int = arguments.jobs
     test_jobs: int = arguments.test_jobs
     supplied_sdk: Path | None = arguments.gui_forms_sdk
+    lockstep_record: Path | None = arguments.gui_forms_lockstep
     skip_components: bool = arguments.skip_components
     sanitize: bool = arguments.sanitize
     smoke: bool = arguments.smoke
@@ -172,9 +274,16 @@ def main() -> None:
     if smoke:
         # The smoke build needs no backend: it packages nothing.
         skip_components = True
+    if lockstep_record is not None and supplied_sdk is not None:
+        parser.error('--gui-forms-lockstep names its own SDK; leave out --gui-forms-sdk')
     configuration: HostConfiguration = host_configuration()
     host: str = configuration.host
     architecture: str = configuration.architecture
+    toolkit: ToolkitSource
+    if lockstep_record is not None:
+        toolkit = lockstep_source(lockstep_record.resolve(), configuration)
+    else:
+        toolkit = submodule_source(supplied_sdk)
     build: Path = ROOT / '.build' / f'native-{host}-{architecture}'
     build.mkdir(parents=True, exist_ok=True)
     record_source_state(build, 'before-build')
@@ -183,22 +292,20 @@ def main() -> None:
         lock = json.loads((ROOT / 'dependencies.lock.json').read_text(encoding='utf-8'))
         verify_source_pins(lock, ROOT)
     sdk: Path = build / 'gui-forms-sdk'
-    sdk_validation: str = 'provider ci_build.py: native build, CTest and installed reference examples passed'
     toolkit_validation: str = 'passed'
-    if supplied_sdk is not None:
-        sdk = supplied_sdk.resolve()
-        sdk_validation = 'externally supplied'
-        toolkit_validation = 'externally supplied SDK'
+    if toolkit.sdk is not None:
+        sdk = toolkit.sdk
+        toolkit_validation = 'externally supplied SDK: ' + toolkit.description
     os.environ['BUILD_JOBS'] = str(jobs)
     os.environ.setdefault('CC', 'clang')
     os.environ.setdefault('CXX', 'clang++')
     os.environ.setdefault('OBJCXX', 'clang++')
-    select_macos_runtime(host)
+    select_macos_runtime(host, toolkit)
     manifest: Path = build / 'gui-forms-consumption.json'
     if sanitize:
         if not (sdk / 'lib/cmake/GUIForms').is_dir() or not manifest.is_file():
             parser.error('--sanitize needs an SDK and consumption manifest from an earlier build')
-        build_sanitized_frontend(host, build, sdk, manifest, jobs, test_jobs)
+        build_sanitized_frontend(toolkit, host, build, sdk, manifest, jobs, test_jobs)
         return
     if not skip_components:
         target: str = host + '-' + architecture
@@ -211,21 +318,21 @@ def main() -> None:
             bundle = arguments.backend_bundle
         install_bundle(bundle, build / 'components', target,
                        str(backend['revision']), str(hashes[target]))
-    if supplied_sdk is None:
+    if toolkit.sdk is None:
         build_toolkit(jobs, test_jobs)
     revision: str = git_output('rev-parse', 'HEAD')
-    toolkit_revision: str = git_output('-C', str(ROOT / 'gui_forms'), 'rev-parse', 'HEAD')
+    toolkit_revision: str = toolkit.revision
     manifest_record: dict[str, object] = {
         'identity': {'id': f'gui-forms-development-{host}-{architecture}-{toolkit_revision[:12]}',
                      'state': 'development', 'source_revision': toolkit_revision},
-        'validation': {'sdk': sdk_validation},
-        'toolchain': toolchain_identity(),
+        'validation': {'sdk': toolkit.description},
+        'toolchain': toolchain_identity(toolkit),
         'limits': ['No platform promotion or installed service claim; see package receipt']}
     manifest_text: str = json.dumps(manifest_record, indent=2) + '\n'
     manifest.write_text(manifest_text, encoding='utf-8')
     frontend: Path = build / 'frontend'
     sdk_identity: str = sdk_fingerprint(sdk)
-    configure_frontend(frontend, sdk, build, manifest, [])
+    configure_frontend(toolkit, frontend, sdk, build, manifest, [])
     sdk_stamp: Path = frontend / 'sdk-fingerprint.txt'
     previous_identity: str = ''
     if sdk_stamp.is_file():
@@ -236,15 +343,16 @@ def main() -> None:
         run('cmake', '--build', frontend, '--target', 'clean')
     if smoke:
         # At this GUI.Forms pin ci_build.py has already built and tested the
-        # whole toolkit; the frontend contributes one test.
+        # whole toolkit (or the lockstep prefix was tested where it was
+        # built); the frontend contributes one test.
         run('cmake', '--build', frontend, '--target', SMOKE_TEST, '--parallel', jobs)
-        os.environ['GUI_FORMS_FONT_DIR'] = str(ROOT / 'gui_forms/assets/fonts')
+        os.environ['GUI_FORMS_FONT_DIR'] = str(toolkit.font_dir)
         run('ctest', '--test-dir', frontend, '--output-on-failure', '--timeout', '120',
             '--tests-regex', '^' + SMOKE_TEST + '$')
         sdk_stamp.write_text(sdk_identity + '\n', encoding='utf-8')
         return
     run('cmake', '--build', frontend, '--parallel', jobs)
-    os.environ['GUI_FORMS_FONT_DIR'] = str(ROOT / 'gui_forms/assets/fonts')
+    os.environ['GUI_FORMS_FONT_DIR'] = str(toolkit.font_dir)
     run('ctest', '--test-dir', frontend, '--output-on-failure', '--timeout', '120', '--parallel', test_jobs)
     tested_identity: str = sdk_fingerprint(sdk)
     if tested_identity != sdk_identity:
